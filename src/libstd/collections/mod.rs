@@ -391,6 +391,7 @@ pub use core_collections::{LinkedList, VecDeque, VecMap};
 pub use core_collections::{binary_heap, bit_vec, bit_set, btree_map, btree_set};
 pub use core_collections::{linked_list, vec_deque, vec_map};
 
+/*
 pub use self::hash_map::HashMap;
 pub use self::hash_set::HashSet;
 
@@ -414,3 +415,4 @@ pub mod hash_set {
 pub mod hash_state {
     pub use super::hash::state::*;
 }
+*/

@@ -225,7 +225,7 @@ pub use rustc_unicode::char;
 #[macro_use]
 mod macros;
 
-mod rtdeps;
+//mod rtdeps;
 
 /* The Prelude. */
 
@@ -261,8 +261,8 @@ mod uint_macros;
 #[path = "num/u32.rs"]  pub mod u32;
 #[path = "num/u64.rs"]  pub mod u64;
 
-#[path = "num/f32.rs"]   pub mod f32;
-#[path = "num/f64.rs"]   pub mod f64;
+//#[path = "num/f32.rs"]   pub mod f32;
+//#[path = "num/f64.rs"]   pub mod f64;
 
 pub mod ascii;
 
@@ -275,43 +275,43 @@ pub mod num;
 /* Runtime and platform support */
 
 #[macro_use]
-pub mod thread;
+//pub mod thread;
 
 pub mod collections;
-pub mod dynamic_lib;
-pub mod env;
-pub mod ffi;
-pub mod fs;
-pub mod io;
-pub mod net;
-pub mod os;
-pub mod path;
-pub mod process;
+//pub mod dynamic_lib;
+//pub mod env;
+//pub mod ffi;
+//pub mod fs;
+//pub mod io;
+//pub mod net;
+//pub mod os;
+//pub mod path;
+//pub mod process;
 pub mod sync;
-pub mod time;
+//pub mod time;
 
-#[macro_use]
-#[path = "sys/common/mod.rs"] mod sys_common;
+//#[macro_use]
+//#[path = "sys/common/mod.rs"] mod sys_common;
 
-#[cfg(unix)]
-#[path = "sys/unix/mod.rs"] mod sys;
-#[cfg(windows)]
-#[path = "sys/windows/mod.rs"] mod sys;
+//#[cfg(unix)]
+//#[path = "sys/unix/mod.rs"] mod sys;
+//#[cfg(windows)]
+//#[path = "sys/windows/mod.rs"] mod sys;
 
-pub mod rt;
-mod panicking;
-mod rand;
+//pub mod rt;
+//mod panicking;
+//mod rand;
 
 // Some external utilities of the standard library rely on randomness (aka
 // rustc_back::TempDir and tests) and need a way to get at the OS rng we've got
 // here. This module is not at all intended for stabilization as-is, however,
 // but it may be stabilized long-term. As a result we're exposing a hidden,
 // unstable module so we can get our build working.
-#[doc(hidden)]
-#[unstable(feature = "rand")]
-pub mod __rand {
-    pub use rand::{thread_rng, ThreadRng, Rng};
-}
+//#[doc(hidden)]
+//#[unstable(feature = "rand")]
+//pub mod __rand {
+    //pub use rand::{thread_rng, ThreadRng, Rng};
+//}
 
 // Modules that exist purely to document + host impl docs for primitive types
 
@@ -329,10 +329,10 @@ mod std {
     pub use error; // used for try!()
     pub use fmt; // used for any formatting strings
     pub use option; // used for thread_local!{}
-    pub use rt; // used for panic!()
+    //pub use rt; // used for panic!()
     pub use vec; // used for vec![]
     pub use cell; // used for tls!
-    pub use thread; // used for thread_local!
+    //pub use thread; // used for thread_local!
     pub use marker;  // used for tls!
 
     // The test runner calls ::std::env::args() but really wants realstd
