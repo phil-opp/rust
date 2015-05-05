@@ -25,4 +25,4 @@
 #![stable(feature = "rust1", since = "1.0.0")]
 
 pub use super::{Read, Write, BufRead, Seek};
-pub use fs::PathExt;
+//pub use fs::PathExt;

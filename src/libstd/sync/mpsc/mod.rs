@@ -265,29 +265,30 @@
 // And now that you've seen all the races that I found and attempted to fix,
 // here's the code for you to find some more!
 
-use prelude::v1::*;
+//use prelude::v1::*;
 
-use sync::Arc;
-use error;
-use fmt;
-use mem;
-use cell::UnsafeCell;
-use marker::Reflect;
+//use sync::Arc;
+//use error;
+//use fmt;
+//use mem;
+//use cell::UnsafeCell;
+//use marker::Reflect;
 
-pub use self::select::{Select, Handle};
-use self::select::StartResult;
-use self::select::StartResult::*;
-use self::blocking::SignalToken;
+//pub use self::select::{Select, Handle};
+//use self::select::StartResult;
+//use self::select::StartResult::*;
+//use self::blocking::SignalToken;
 
-mod blocking;
-mod oneshot;
-mod select;
-mod shared;
-mod stream;
-mod sync;
-mod mpsc_queue;
-mod spsc_queue;
+//mod blocking;
+//mod oneshot;
+//mod select;
+//mod shared;
+//mod stream;
+//mod sync;
+pub mod mpsc_queue;
+pub mod spsc_queue;
 
+/*
 /// The receiving-half of Rust's channel type. This half can only be owned by
 /// one thread
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -2196,3 +2197,4 @@ mod sync_tests {
         }
     }
 }
+*/

@@ -26,24 +26,24 @@ use string::String;
 use str;
 use vec::Vec;
 
-pub use self::buffered::{BufReader, BufWriter, BufStream, LineWriter};
-pub use self::buffered::IntoInnerError;
-pub use self::cursor::Cursor;
+//pub use self::buffered::{BufReader, BufWriter, BufStream, LineWriter};
+//pub use self::buffered::IntoInnerError;
+//pub use self::cursor::Cursor;
 pub use self::error::{Result, Error, ErrorKind};
-pub use self::util::{copy, sink, Sink, empty, Empty, repeat, Repeat};
-pub use self::stdio::{stdin, stdout, stderr, _print, Stdin, Stdout, Stderr};
-pub use self::stdio::{StdoutLock, StderrLock, StdinLock};
-#[doc(no_inline, hidden)]
-pub use self::stdio::{set_panic, set_print};
+//pub use self::util::{copy, sink, Sink, empty, Empty, repeat, Repeat};
+//pub use self::stdio::{stdin, stdout, stderr, _print, Stdin, Stdout, Stderr};
+//pub use self::stdio::{StdoutLock, StderrLock, StdinLock};
+//#[doc(no_inline, hidden)]
+//pub use self::stdio::{set_panic, set_print};
 
 pub mod prelude;
-mod buffered;
-mod cursor;
+//mod buffered;
+//mod cursor;
 mod error;
-mod impls;
-mod lazy;
-mod util;
-mod stdio;
+//mod impls;
+//mod lazy;
+//mod util;
+//mod stdio;
 
 const DEFAULT_BUF_SIZE: usize = 64 * 1024;
 
@@ -899,6 +899,20 @@ impl<B: BufRead> Iterator for Lines<B> {
         }
     }
 }
+
+/* ----- added for rust os ----- */
+
+#[unstable(feature = "print",
+           reason = "implementation detail which may disappear or be replaced at any time")]
+#[doc(hidden)]
+pub fn _print(fmt: fmt::Arguments) {
+    extern {
+        fn print_to_stdout(fmt: fmt::Arguments);
+    }
+    unsafe{ print_to_stdout(fmt) }
+}
+
+/* ----- end of rust os functions ----- */
 
 #[cfg(test)]
 mod tests {

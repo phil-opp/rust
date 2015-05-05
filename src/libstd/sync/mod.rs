@@ -32,7 +32,7 @@ pub use core::atomic;
 
 //pub use self::future::Future;
 
-//pub mod mpsc;
+pub mod mpsc;
 
 //mod barrier;
 //mod condvar;

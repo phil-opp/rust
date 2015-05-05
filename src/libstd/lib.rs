@@ -103,6 +103,7 @@
        test(no_crate_inject, attr(deny(warnings))),
        test(attr(allow(dead_code, deprecated, unused_variables, unused_mut))))]
 
+#![allow(unused_features)]
 #![feature(alloc)]
 #![feature(allow_internal_unstable)]
 #![feature(associated_consts)]
@@ -184,7 +185,6 @@ extern crate libc;
 #[cfg(test)] pub use realstd::ops;
 #[cfg(test)] pub use realstd::cmp;
 #[cfg(test)] pub use realstd::boxed;
-
 
 // NB: These reexports are in the order they should be listed in rustdoc
 
@@ -282,7 +282,7 @@ pub mod collections;
 //pub mod env;
 //pub mod ffi;
 //pub mod fs;
-//pub mod io;
+pub mod io;
 //pub mod net;
 //pub mod os;
 //pub mod path;
@@ -298,7 +298,7 @@ pub mod sync;
 //#[cfg(windows)]
 //#[path = "sys/windows/mod.rs"] mod sys;
 
-//pub mod rt;
+pub mod rt;
 //mod panicking;
 //mod rand;
 

@@ -21,41 +21,58 @@
                       to disappear")]
 #![allow(missing_docs)]
 
-use prelude::v1::*;
-use sys;
-use usize;
+//use prelude::v1::*;
+//use sys;
+//use usize;
 
 // Reexport some of our utilities which are expected by other crates.
-pub use self::util::{min_stack, running_on_valgrind};
-pub use self::unwind::{begin_unwind, begin_unwind_fmt};
+//pub use self::util::{min_stack, running_on_valgrind};
+//pub use self::unwind::{begin_unwind, begin_unwind_fmt};
 
 // Reexport some functionality from liballoc.
 pub use alloc::heap;
 
 // Simple backtrace functionality (to print on panic)
-pub mod backtrace;
+//pub mod backtrace;
 
 // Internals
 #[macro_use]
 mod macros;
 
 // These should be refactored/moved/made private over time
-pub mod util;
-pub mod unwind;
-pub mod args;
+//pub mod util;
+//pub mod unwind;
+//pub mod args;
 
-mod at_exit_imp;
-mod libunwind;
+//mod at_exit_imp;
+//mod libunwind;
 
 /// The default error code of the rust runtime if the main thread panics instead
 /// of exiting cleanly.
 pub const DEFAULT_ERROR_CODE: isize = 101;
 
-#[cfg(any(windows, android))]
-const OS_DEFAULT_STACK_ESTIMATE: usize = 1 << 20;
-#[cfg(all(unix, not(android)))]
-const OS_DEFAULT_STACK_ESTIMATE: usize = 2 * (1 << 20);
+//#[cfg(any(windows, android))]
+//const OS_DEFAULT_STACK_ESTIMATE: usize = 1 << 20;
+//#[cfg(all(unix, not(android)))]
+//const OS_DEFAULT_STACK_ESTIMATE: usize = 2 * (1 << 20);
 
+/* ----- added for rust os ----- */
+
+/// This is the entry point of unwinding for panic!() and assert!().
+#[inline(never)] #[cold] // avoid code bloat at the call sites as much as possible
+pub fn begin_unwind(msg: &str, file_line: &(&'static str, u32)) -> ! {
+    use fmt;
+    #[allow(improper_ctypes)]
+    extern {
+        #[lang = "panic_fmt"]
+        fn panic_impl(fmt: fmt::Arguments, file: &'static str, line: u32) -> !;
+    }
+    unsafe{ panic_impl(format_args!("{}", msg), file_line.0, file_line.1) }
+}
+
+/* ----- end of rust os functions ----- */
+
+/*
 #[cfg(not(test))]
 #[lang = "start"]
 fn lang_start(main: *const u8, argc: isize, argv: *const *const u8) -> isize {
@@ -173,3 +190,4 @@ pub unsafe fn cleanup() {
     sys::stack_overflow::cleanup();
     at_exit_imp::cleanup();
 }
+*/
