@@ -24,6 +24,7 @@
 //use prelude::v1::*;
 //use sys;
 //use usize;
+use fmt;
 
 // Reexport some of our utilities which are expected by other crates.
 //pub use self::util::{min_stack, running_on_valgrind};
@@ -61,13 +62,18 @@ pub const DEFAULT_ERROR_CODE: isize = 101;
 /// This is the entry point of unwinding for panic!() and assert!().
 #[inline(never)] #[cold] // avoid code bloat at the call sites as much as possible
 pub fn begin_unwind(msg: &str, file_line: &(&'static str, u32)) -> ! {
-    use fmt;
+    begin_unwind_fmt(format_args!("{}", msg), file_line)
+}
+
+/// The entry point for unwinding with a formatted message.
+#[inline(never)] #[cold]
+pub fn begin_unwind_fmt(msg: fmt::Arguments, file_line: &(&'static str, u32)) -> ! {
     #[allow(improper_ctypes)]
     extern {
         #[lang = "panic_fmt"]
         fn panic_impl(fmt: fmt::Arguments, file: &'static str, line: u32) -> !;
     }
-    unsafe{ panic_impl(format_args!("{}", msg), file_line.0, file_line.1) }
+    unsafe{ panic_impl(msg, file_line.0, file_line.1) }
 }
 
 /* ----- end of rust os functions ----- */
