@@ -38,6 +38,8 @@
 // http://www.1024cores.net/home/lock-free-algorithms
 //                         /queues/non-intrusive-mpsc-node-based-queue
 
+#![unstable(feature = "mpsc_queue")]
+
 pub use self::PopResult::*;
 
 use core::prelude::*;

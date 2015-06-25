@@ -33,6 +33,8 @@
 //! concurrently between two threads. This data structure is safe to use and
 //! enforces the semantics that there is one pusher and one popper.
 
+#![unstable(feature = "spsc_queue")]
+
 use core::prelude::*;
 
 use alloc::boxed::Box;
