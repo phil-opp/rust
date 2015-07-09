@@ -15,21 +15,22 @@
 use prelude::v1::*;
 
 use io::{self, Error, ErrorKind};
-use sys_common::net as net_imp;
+//use sys_common::net as net_imp;
 
 pub use self::ip::{IpAddr, Ipv4Addr, Ipv6Addr, Ipv6MulticastScope};
-pub use self::addr::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
-pub use self::tcp::{TcpStream, TcpListener, Incoming};
-pub use self::udp::UdpSocket;
-pub use self::parser::AddrParseError;
+//pub use self::addr::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
+//pub use self::tcp::{TcpStream, TcpListener, Incoming};
+//pub use self::udp::UdpSocket;
+//pub use self::parser::AddrParseError;
 
 mod ip;
-mod addr;
-mod tcp;
-mod udp;
-mod parser;
-#[cfg(test)] mod test;
+//mod addr;
+//mod tcp;
+//mod udp;
+//mod parser;
+//#[cfg(test)] mod test;
 
+/*
 /// Possible values which can be passed to the `shutdown` method of `TcpStream`.
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[stable(feature = "rust1", since = "1.0.0")]
@@ -48,6 +49,7 @@ pub enum Shutdown {
     #[stable(feature = "rust1", since = "1.0.0")]
     Both,
 }
+*/
 
 #[doc(hidden)]
 trait NetInt {
@@ -65,6 +67,7 @@ doit! { i8 i16 i32 i64 isize u8 u16 u32 u64 usize }
 fn hton<I: NetInt>(i: I) -> I { i.to_be() }
 fn ntoh<I: NetInt>(i: I) -> I { I::from_be(i) }
 
+/*
 fn each_addr<A: ToSocketAddrs, F, T>(addr: A, mut f: F) -> io::Result<T>
     where F: FnMut(&SocketAddr) -> io::Result<T>
 {
@@ -129,3 +132,4 @@ pub fn lookup_host(host: &str) -> io::Result<LookupHost> {
 pub fn lookup_addr(addr: &IpAddr) -> io::Result<String> {
     net_imp::lookup_addr(addr)
 }
+*/
