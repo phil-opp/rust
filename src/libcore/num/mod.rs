@@ -44,6 +44,7 @@ pub struct Wrapping<T>(#[stable(feature = "rust1", since = "1.0.0")] pub T);
 
 pub mod wrapping;
 pub mod flt2dec;
+#[cfg(not(disable_float))]
 pub mod dec2flt;
 
 /// Types that have a "zero" value.
@@ -94,6 +95,7 @@ macro_rules! zero_one_impl_float {
         }
     )*)
 }
+#[cfg(not(disable_float))]
 zero_one_impl_float! { f32 f64 }
 
 macro_rules! checked_op {
@@ -1400,7 +1402,9 @@ macro_rules! from_str_float_impl {
         }
     }
 }
+#[cfg(not(disable_float))]
 from_str_float_impl!(f32, to_f32);
+#[cfg(not(disable_float))]
 from_str_float_impl!(f64, to_f64);
 
 macro_rules! from_str_radix_int_impl {
