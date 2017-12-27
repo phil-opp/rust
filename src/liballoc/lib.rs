@@ -115,6 +115,7 @@
 #![feature(alloc_layout_extra)]
 #![feature(try_trait)]
 #![feature(iter_nth_back)]
+#![feature(never_type)]
 
 // Allow testing this library
 
@@ -131,6 +132,7 @@ mod macros;
 // Heaps provided for low-level allocation strategies
 
 pub mod alloc;
+pub mod abort_adapter;
 
 // Primitive types using the heaps above
 
