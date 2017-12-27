@@ -88,7 +88,7 @@ use core::ptr::{self, NonNull, Unique};
 use core::task::{Context, Poll};
 
 use crate::alloc::{
-    Stage0Alloc as Alloc, Global, Layout, handle_alloc_error, stage0_phantom, stage0_unphantom
+    Stage0Alloc as Alloc, AllocHelper, AllocErr, Global, Layout, handle_alloc_error, stage0_phantom, stage0_unphantom
 };
 use crate::vec::Vec;
 use crate::raw_vec::RawVec;
@@ -137,7 +137,7 @@ impl<T> Box<T> {
     }
 }
 
-impl<T, A: Alloc> Box<T, A> {
+impl<T, A: Alloc<Err = AllocErr>> Box<T, A> {
     /// Allocates memory in the given allocator and then places `x` into it.
     ///
     /// This doesn't actually allocate if `T` is zero-sized.
@@ -210,7 +210,7 @@ impl<T: ?Sized> Box<T> {
     }
 }
 
-impl<T: ?Sized, A: Alloc> Box<T, A> {
+impl<T: ?Sized, A> Box<T, A> {
     /// Constructs a box from a raw pointer in the given allocator.
     ///
     /// This is similar to the [`Box::from_raw`] function, but assumes
@@ -394,7 +394,7 @@ unsafe impl<#[may_dangle] T: ?Sized, A> Drop for Box<T, A> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: Default, A: Alloc + Default> Default for Box<T, A> {
+impl<T: Default, A: Alloc<Err = AllocErr> + Default> Default for Box<T, A> {
     /// Creates a `Box<T, A>`, with the `Default` value for T.
     fn default() -> Box<T, A> {
         Box::new_in(Default::default(), A::default())
@@ -402,21 +402,21 @@ impl<T: Default, A: Alloc + Default> Default for Box<T, A> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T, A: Alloc + Default> Default for Box<[T], A> {
+impl<T, A: Alloc<Err = AllocErr> + Default> Default for Box<[T], A> {
     fn default() -> Box<[T], A> {
         Box::<[T; 0], A>::new_in([], A::default())
     }
 }
 
 #[stable(feature = "default_box_extra", since = "1.17.0")]
-impl<A: Alloc + Default> Default for Box<str, A> {
+impl<A: Alloc<Err = AllocErr> + Default> Default for Box<str, A> {
     fn default() -> Box<str, A> {
         unsafe { from_boxed_utf8_unchecked(Default::default()) }
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: Clone, A: Alloc + Clone> Clone for Box<T, A> {
+impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<T, A> {
     /// Returns a new box with a `clone()` of this box's contents.
     ///
     /// # Examples
@@ -448,9 +448,8 @@ impl<T: Clone, A: Alloc + Clone> Clone for Box<T, A> {
     }
 }
 
-
 #[stable(feature = "box_slice_clone", since = "1.3.0")]
-impl<A: Alloc + Clone> Clone for Box<str, A> {
+impl<A: Alloc<Err = AllocErr> + Clone> Clone for Box<str, A> {
     fn clone(&self) -> Self {
         let len = self.len();
         let buf = RawVec::with_capacity_in(len, stage0_unphantom(self.1.clone()));
@@ -559,7 +558,7 @@ impl<T: ?Sized + Hasher, A> Hasher for Box<T, A> {
 }
 
 #[stable(feature = "from_for_ptrs", since = "1.6.0")]
-impl<T, A: Alloc + Default> From<T> for Box<T, A> {
+impl<T, A: Alloc<Err = AllocErr> + Default> From<T> for Box<T, A> {
     /// Converts a generic type `T` into a `Box<T>`
     ///
     /// The conversion allocates on the heap and moves `t`
@@ -588,7 +587,7 @@ impl<T: ?Sized, A> From<Box<T, A>> for Pin<Box<T, A>> {
 }
 
 #[stable(feature = "box_from_slice", since = "1.17.0")]
-impl<T: Copy, A: Alloc + Default> From<&[T]> for Box<[T], A> {
+impl<T: Copy, A: Alloc<Err = AllocErr> + Default> From<&[T]> for Box<[T], A> {
     /// Converts a `&[T]` into a `Box<[T]>`
     ///
     /// This conversion allocates on the heap
@@ -611,7 +610,7 @@ impl<T: Copy, A: Alloc + Default> From<&[T]> for Box<[T], A> {
 }
 
 #[stable(feature = "box_from_slice", since = "1.17.0")]
-impl<A: Alloc + Default> From<&str> for Box<str, A> {
+impl<A: Alloc<Err = AllocErr> + Default> From<&str> for Box<str, A> {
     /// Converts a `&str` into a `Box<str>`
     ///
     /// This conversion allocates on the heap
@@ -629,7 +628,7 @@ impl<A: Alloc + Default> From<&str> for Box<str, A> {
 }
 
 #[stable(feature = "boxed_str_conv", since = "1.19.0")]
-impl<A: Alloc> From<Box<str, A>> for Box<[u8], A> {
+impl<A> From<Box<str, A>> for Box<[u8], A> {
     /// Converts a `Box<str>>` into a `Box<[u8]>`
     ///
     /// This conversion does not allocate on the heap and happens in place.
@@ -652,7 +651,7 @@ impl<A: Alloc> From<Box<str, A>> for Box<[u8], A> {
     }
 }
 
-impl<A: Alloc> Box<dyn Any, A> {
+impl<A> Box<dyn Any, A> {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     /// Attempt to downcast the box to a concrete type.
@@ -683,7 +682,7 @@ impl<A: Alloc> Box<dyn Any, A> {
     }
 }
 
-impl<A: Alloc> Box<dyn Any + Send, A> {
+impl<A: Alloc<Err=AllocErr>> Box<dyn Any + Send, A> {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     /// Attempt to downcast the box to a concrete type.
@@ -885,7 +884,7 @@ impl<A> FromIterator<A> for Box<[A]> {
 }
 
 #[stable(feature = "box_slice_clone", since = "1.3.0")]
-impl<T: Clone, A: Alloc + Clone> Clone for Box<[T], A> {
+impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<[T], A> {
     fn clone(&self) -> Self {
         let mut new = BoxBuilder {
             data: RawVec::with_capacity_in(self.len(), stage0_unphantom(self.1.clone())),
@@ -906,12 +905,12 @@ impl<T: Clone, A: Alloc + Clone> Clone for Box<[T], A> {
         return unsafe { new.into_box() };
 
         // Helper type for responding to panics correctly.
-        struct BoxBuilder<T, A: Alloc> {
+        struct BoxBuilder<T, A: Alloc<Err = AllocErr> + AllocHelper<Err = AllocErr>> {
             data: RawVec<T, A>,
             len: usize,
         }
 
-        impl<T, A: Alloc> BoxBuilder<T, A> {
+        impl<T, A: Alloc<Err = AllocErr>> BoxBuilder<T, A> {
             unsafe fn into_box(self) -> Box<[T], A> {
                 let raw = ptr::read(&self.data);
                 mem::forget(self);
@@ -919,7 +918,7 @@ impl<T: Clone, A: Alloc + Clone> Clone for Box<[T], A> {
             }
         }
 
-        impl<T, A: Alloc> Drop for BoxBuilder<T, A> {
+        impl<T, A: Alloc<Err = AllocErr>> Drop for BoxBuilder<T, A> {
             fn drop(&mut self) {
                 let mut data = self.data.ptr();
                 let max = unsafe { data.add(self.len) };
