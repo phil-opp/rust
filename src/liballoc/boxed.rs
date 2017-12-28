@@ -87,8 +87,9 @@ use core::ops::{
 use core::ptr::{self, NonNull, Unique};
 use core::task::{Context, Poll};
 
+use crate::abort_adapter::AbortAdapter;
 use crate::alloc::{
-    Stage0Alloc as Alloc, AllocHelper, AllocErr, Global, Layout, handle_alloc_error, stage0_phantom, stage0_unphantom
+    Stage0Alloc as Alloc, Global, Layout, stage0_phantom, stage0_unphantom
 };
 use crate::vec::Vec;
 use crate::raw_vec::RawVec;
@@ -101,7 +102,7 @@ use crate::str::from_boxed_utf8_unchecked;
 #[lang = "owned_box"]
 #[fundamental]
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct Box<T: ?Sized, A = Global>(Unique<T>, pub(crate) A);
+pub struct Box<T: ?Sized, A = AbortAdapter<Global>>(Unique<T>, pub(crate) A);
 
 // Use a variant with PhantomData in stage0, to satisfy the limitations of
 // DispatchFromDyn in 1.35.
@@ -110,7 +111,7 @@ pub struct Box<T: ?Sized, A = Global>(Unique<T>, pub(crate) A);
 #[lang = "owned_box"]
 #[fundamental]
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct Box<T: ?Sized, A = Global>(Unique<T>, pub(crate) PhantomData<A>);
+pub struct Box<T: ?Sized, A = AbortAdapter<Global>>(Unique<T>, pub(crate) PhantomData<A>);
 
 impl<T> Box<T> {
     /// Allocates memory on the heap and then places `x` into it.
@@ -137,7 +138,7 @@ impl<T> Box<T> {
     }
 }
 
-impl<T, A: Alloc<Err = AllocErr>> Box<T, A> {
+impl<T, A: Alloc> Box<T, A> {
     /// Allocates memory in the given allocator and then places `x` into it.
     ///
     /// This doesn't actually allocate if `T` is zero-sized.
@@ -151,7 +152,7 @@ impl<T, A: Alloc<Err = AllocErr>> Box<T, A> {
     /// ```
     #[unstable(feature = "allocator_api", issue = "32838")]
     #[inline(always)]
-    pub fn new_in(x: T, a: A) -> Box<T, A> {
+    pub fn new_in(x: T, a: A) -> Result<Box<T, A>, A::Err> {
         let mut a = a;
         let layout = Layout::for_value(&x);
         let size = layout.size();
@@ -159,7 +160,7 @@ impl<T, A: Alloc<Err = AllocErr>> Box<T, A> {
             Unique::empty()
         } else {
             unsafe {
-                let ptr = a.alloc(layout).unwrap_or_else(|_| handle_alloc_error(layout));
+                let ptr = a.alloc(layout)?;
                 ptr.cast().into()
             }
         };
@@ -168,15 +169,15 @@ impl<T, A: Alloc<Err = AllocErr>> Box<T, A> {
         unsafe {
             ptr::write(ptr.as_ptr() as *mut T, x);
         }
-        Box(ptr, stage0_phantom(a))
+        Ok(Box(ptr, stage0_phantom(a)))
     }
 
     /// Constructs a new `Pin<Box<T>>`. If `T` does not implement `Unpin`, then
     /// `x` will be pinned in memory and unable to be moved.
     #[unstable(feature = "allocator_api", issue = "32838")]
     #[inline(always)]
-    pub fn pin_in(x: T, a: A) -> Pin<Box<T, A>> {
-        Box::new_in(x, a).into()
+    pub fn pin_in(x: T, a: A) -> Result<Pin<Box<T, A>>, A::Err> {
+        Box::new_in(x, a).map(Into::into)
     }
 }
 
@@ -206,7 +207,7 @@ impl<T: ?Sized> Box<T> {
     #[stable(feature = "box_raw", since = "1.4.0")]
     #[inline]
     pub unsafe fn from_raw(raw: *mut T) -> Self {
-        Box(Unique::new_unchecked(raw), stage0_phantom(Global))
+        Box(Unique::new_unchecked(raw), stage0_phantom(AbortAdapter(Global)))
     }
 }
 
@@ -272,7 +273,7 @@ impl<T: ?Sized, A> Box<T, A> {
     /// ```
     #[stable(feature = "box_raw", since = "1.4.0")]
     #[inline]
-    pub fn into_raw(b: Box<T, A>) -> *mut T {
+    pub fn into_raw(b: Self) -> *mut T {
         Box::into_raw_non_null(b).as_ptr()
     }
 
@@ -322,6 +323,21 @@ impl<T: ?Sized, A> Box<T, A> {
         unsafe { Unique::new_unchecked(unique) }
     }
 
+
+    #[unstable(feature = "unique", reason = "needs an RFC to flesh out design",
+               issue = "27730")]
+    #[inline]
+    pub fn into_both(mut b: Self) -> (Unique<T>, A) {
+        let unique = b.0;
+        let alloc = unsafe {
+            let mut a = mem::uninitialized();
+            mem::swap(&mut a, &mut b.1);
+            a
+        };
+        mem::forget(b);
+        (unique, alloc)
+    }
+
     /// Consumes and leaks the `Box`, returning a mutable reference,
     /// `&'a mut T`. Note that the type `T` must outlive the chosen lifetime
     /// `'a`. If the type has only static references, or none at all, then this
@@ -365,7 +381,7 @@ impl<T: ?Sized, A> Box<T, A> {
     /// ```
     #[stable(feature = "box_leak", since = "1.26.0")]
     #[inline]
-    pub fn leak<'a>(b: Box<T, A>) -> &'a mut T
+    pub fn leak<'a>(b: Self) -> &'a mut T
     where
         T: 'a // Technically not needed, but kept to be explicit.
     {
@@ -386,6 +402,7 @@ impl<T: ?Sized, A> Box<T, A> {
     }
 }
 
+
 #[stable(feature = "rust1", since = "1.0.0")]
 unsafe impl<#[may_dangle] T: ?Sized, A> Drop for Box<T, A> {
     fn drop(&mut self) {
@@ -394,29 +411,31 @@ unsafe impl<#[may_dangle] T: ?Sized, A> Drop for Box<T, A> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: Default, A: Alloc<Err = AllocErr> + Default> Default for Box<T, A> {
+impl<T: Default, A: Alloc<Err = !> + Default> Default for Box<T, A> {
     /// Creates a `Box<T, A>`, with the `Default` value for T.
     fn default() -> Box<T, A> {
-        Box::new_in(Default::default(), A::default())
+        let Ok(b) = Box::new_in(Default::default(), A::default());
+        b
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T, A: Alloc<Err = AllocErr> + Default> Default for Box<[T], A> {
+impl<T, A: Alloc<Err=!> + Default> Default for Box<[T], A> {
     fn default() -> Box<[T], A> {
-        Box::<[T; 0], A>::new_in([], A::default())
+        let Ok(b) = Box::<[T; 0], A>::new_in([], Default::default());
+        b
     }
 }
 
 #[stable(feature = "default_box_extra", since = "1.17.0")]
-impl<A: Alloc<Err = AllocErr> + Default> Default for Box<str, A> {
+impl<A: Alloc<Err = !> + Default> Default for Box<str, A> {
     fn default() -> Box<str, A> {
         unsafe { from_boxed_utf8_unchecked(Default::default()) }
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<T, A> {
+impl<T: Clone, A: Alloc<Err = !> + Clone> Clone for Box<T, A> {
     /// Returns a new box with a `clone()` of this box's contents.
     ///
     /// # Examples
@@ -427,8 +446,9 @@ impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<T, A> {
     /// ```
     #[rustfmt::skip]
     #[inline]
-    fn clone(&self) -> Box<T, A> {
-        Box::new_in((**self).clone(), stage0_unphantom(self.1.clone()))
+    fn clone(&self) -> Self {
+        let Ok(b) = Box::new_in((**self).clone(), stage0_unphantom(self.1.clone()));
+        b
     }
     /// Copies `source`'s contents into `self` without creating a new allocation.
     ///
@@ -443,16 +463,16 @@ impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<T, A> {
     /// assert_eq!(*y, 5);
     /// ```
     #[inline]
-    fn clone_from(&mut self, source: &Box<T, A>) {
+    fn clone_from(&mut self, source: &Self) {
         (**self).clone_from(&(**source));
     }
 }
 
 #[stable(feature = "box_slice_clone", since = "1.3.0")]
-impl<A: Alloc<Err = AllocErr> + Clone> Clone for Box<str, A> {
+impl<A: Alloc<Err = !> + Clone> Clone for Box<str, A> {
     fn clone(&self) -> Self {
         let len = self.len();
-        let buf = RawVec::with_capacity_in(len, stage0_unphantom(self.1.clone()));
+        let Ok(buf) = RawVec::with_capacity_in(len, stage0_unphantom(self.1.clone()));
         unsafe {
             ptr::copy_nonoverlapping(self.as_ptr(), buf.ptr(), len);
             from_boxed_utf8_unchecked(buf.into_box())
@@ -460,6 +480,7 @@ impl<A: Alloc<Err = AllocErr> + Clone> Clone for Box<str, A> {
     }
 }
 
+/// Just the contents are compared, the allocator is ignored
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + PartialEq, A> PartialEq for Box<T, A> {
     #[inline]
@@ -471,6 +492,7 @@ impl<T: ?Sized + PartialEq, A> PartialEq for Box<T, A> {
         PartialEq::ne(&**self, &**other)
     }
 }
+/// Just the contents are compared, the allocator is ignored
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + PartialOrd, A> PartialOrd for Box<T, A> {
     #[inline]
@@ -494,6 +516,7 @@ impl<T: ?Sized + PartialOrd, A> PartialOrd for Box<T, A> {
         PartialOrd::gt(&**self, &**other)
     }
 }
+/// Just the contents are compared, the allocator is ignored
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + Ord, A> Ord for Box<T, A> {
     #[inline]
@@ -501,9 +524,11 @@ impl<T: ?Sized + Ord, A> Ord for Box<T, A> {
         Ord::cmp(&**self, &**other)
     }
 }
+/// Just the contents are compared, the allocator is ignored
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + Eq, A> Eq for Box<T, A> {}
 
+/// Just the contents are compared, the allocator is ignored
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<T: ?Sized + Hash, A> Hash for Box<T, A> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -511,6 +536,7 @@ impl<T: ?Sized + Hash, A> Hash for Box<T, A> {
     }
 }
 
+/// Just the contents are compared, the allocator is ignored
 #[stable(feature = "indirect_hasher_impl", since = "1.22.0")]
 impl<T: ?Sized + Hasher, A> Hasher for Box<T, A> {
     fn finish(&self) -> u64 {
@@ -558,7 +584,7 @@ impl<T: ?Sized + Hasher, A> Hasher for Box<T, A> {
 }
 
 #[stable(feature = "from_for_ptrs", since = "1.6.0")]
-impl<T, A: Alloc<Err = AllocErr> + Default> From<T> for Box<T, A> {
+impl<T, A: Alloc<Err = !> + Default> From<T> for Box<T, A> {
     /// Converts a generic type `T` into a `Box<T>`
     ///
     /// The conversion allocates on the heap and moves `t`
@@ -572,7 +598,8 @@ impl<T, A: Alloc<Err = AllocErr> + Default> From<T> for Box<T, A> {
     /// assert_eq!(Box::from(x), boxed);
     /// ```
     fn from(t: T) -> Self {
-        Box::new_in(t, A::default())
+        let Ok(b) = Box::new_in(t, Default::default());
+        b
     }
 }
 
@@ -587,7 +614,7 @@ impl<T: ?Sized, A> From<Box<T, A>> for Pin<Box<T, A>> {
 }
 
 #[stable(feature = "box_from_slice", since = "1.17.0")]
-impl<T: Copy, A: Alloc<Err = AllocErr> + Default> From<&[T]> for Box<[T], A> {
+impl<T: Copy, A: Alloc<Err = !> + Default> From<&[T]> for Box<[T], A> {
     /// Converts a `&[T]` into a `Box<[T]>`
     ///
     /// This conversion allocates on the heap
@@ -603,14 +630,15 @@ impl<T: Copy, A: Alloc<Err = AllocErr> + Default> From<&[T]> for Box<[T], A> {
     /// ```
     fn from(slice: &[T]) -> Box<[T], A> {
         let a = A::default();
-        let mut boxed = unsafe { RawVec::with_capacity_in(slice.len(), a).into_box() };
+        let Ok(vec) = RawVec::with_capacity_in(slice.len(), a);
+        let mut boxed = unsafe { vec.into_box() };
         boxed.copy_from_slice(slice);
         boxed
     }
 }
 
 #[stable(feature = "box_from_slice", since = "1.17.0")]
-impl<A: Alloc<Err = AllocErr> + Default> From<&str> for Box<str, A> {
+impl<A: Alloc<Err = !> + Default> From<&str> for Box<str, A> {
     /// Converts a `&str` into a `Box<str>`
     ///
     /// This conversion allocates on the heap
@@ -682,7 +710,7 @@ impl<A> Box<dyn Any, A> {
     }
 }
 
-impl<A: Alloc<Err=AllocErr>> Box<dyn Any + Send, A> {
+impl<A: Alloc<Err=!>> Box<dyn Any + Send, A> {
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
     /// Attempt to downcast the box to a concrete type.
@@ -853,9 +881,9 @@ impl<A, F: Fn<A> + ?Sized, Alloc> Fn<A> for Box<F, Alloc> {
 #[rustc_paren_sugar]
 #[unstable(feature = "fnbox",
            reason = "will be deprecated if and when `Box<FnOnce>` becomes usable", issue = "28796")]
-pub trait FnBox<Args>: FnOnce<Args> {
+pub trait FnBox<Args, A: Alloc = AbortAdapter<Global>>: FnOnce<Args> {
     /// Performs the call operation.
-    fn call_box(self: Box<Self>, args: Args) -> Self::Output;
+    fn call_box(self: Box<Self, A>, args: Args) -> Self::Output;
 }
 
 //FIXME: Make generic over A along with DispatchFromDyn.
@@ -884,10 +912,12 @@ impl<A> FromIterator<A> for Box<[A]> {
 }
 
 #[stable(feature = "box_slice_clone", since = "1.3.0")]
-impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<[T], A> {
+impl<T: Clone, A: Alloc<Err = !> + Clone> Clone for Box<[T], A> {
     fn clone(&self) -> Self {
+        let Ok(b) = RawVec::with_capacity_in(self.len(), self.1.clone());
+
         let mut new = BoxBuilder {
-            data: RawVec::with_capacity_in(self.len(), stage0_unphantom(self.1.clone())),
+            data: b,
             len: 0,
         };
 
@@ -905,12 +935,12 @@ impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<[T], A> {
         return unsafe { new.into_box() };
 
         // Helper type for responding to panics correctly.
-        struct BoxBuilder<T, A: Alloc<Err = AllocErr> + AllocHelper<Err = AllocErr>> {
+        struct BoxBuilder<T, A: Alloc> {
             data: RawVec<T, A>,
             len: usize,
         }
 
-        impl<T, A: Alloc<Err = AllocErr>> BoxBuilder<T, A> {
+        impl<T, A: Alloc> BoxBuilder<T, A> {
             unsafe fn into_box(self) -> Box<[T], A> {
                 let raw = ptr::read(&self.data);
                 mem::forget(self);
@@ -918,7 +948,7 @@ impl<T: Clone, A: Alloc<Err = AllocErr> + Clone> Clone for Box<[T], A> {
             }
         }
 
-        impl<T, A: Alloc<Err = AllocErr>> Drop for BoxBuilder<T, A> {
+        impl<T, A: Alloc> Drop for BoxBuilder<T, A> {
             fn drop(&mut self) {
                 let mut data = self.data.ptr();
                 let max = unsafe { data.add(self.len) };

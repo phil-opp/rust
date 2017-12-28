@@ -116,6 +116,7 @@
 #![feature(try_trait)]
 #![feature(iter_nth_back)]
 #![feature(never_type)]
+#![feature(exhaustive_patterns)]
 
 // Allow testing this library
 
