@@ -67,6 +67,7 @@
 #![allow(explicit_outlives_requirements)]
 
 #![cfg_attr(not(test), feature(generator_trait))]
+#![cfg_attr(stage0, feature(trait_alias))]
 #![cfg_attr(test, feature(test))]
 
 #![feature(allocator_api)]

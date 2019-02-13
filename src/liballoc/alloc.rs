@@ -3,12 +3,34 @@
 #![stable(feature = "alloc_module", since = "1.28.0")]
 
 use core::intrinsics::{min_align_of_val, size_of_val};
+#[cfg(stage0)]
+use core::marker::PhantomData;
 use core::ptr::{NonNull, Unique};
 use core::usize;
 
 #[stable(feature = "alloc_module", since = "1.28.0")]
 #[doc(inline)]
 pub use core::alloc::*;
+
+#[cfg(stage0)]
+#[unstable(feature = "allocator_api", issue = "32838")]
+// pub to make the compiler happy wrt the trait being made public by the impls in e.g. boxed.rs.
+pub trait Stage0Alloc = Alloc + Default;
+
+#[cfg(not(stage0))]
+pub(crate) use Alloc as Stage0Alloc;
+
+#[cfg(stage0)]
+pub(crate) fn stage0_phantom<A>(_a: A) -> PhantomData<A> { PhantomData }
+
+#[cfg(not(stage0))]
+pub(crate) fn stage0_phantom<A>(a: A) -> A { a }
+
+#[cfg(stage0)]
+pub(crate) fn stage0_unphantom<A: Default>(_a: PhantomData<A>) -> A { A::default() }
+
+#[cfg(not(stage0))]
+pub(crate) fn stage0_unphantom<A>(a: A) -> A { a }
 
 extern "Rust" {
     // These are the magic symbols to call the global allocator.  rustc generates
@@ -37,9 +59,13 @@ extern "Rust" {
 ///
 /// Note: while this type is unstable, the functionality it provides can be
 /// accessed through the [free functions in `alloc`](index.html#functions).
+#[cfg(not(test))]
 #[unstable(feature = "allocator_api", issue = "32838")]
 #[derive(Copy, Clone, Default, Debug)]
 pub struct Global;
+
+#[cfg(test)]
+pub use std::alloc::Global;
 
 /// Allocate memory with the global allocator.
 ///
@@ -144,6 +170,7 @@ pub unsafe fn alloc_zeroed(layout: Layout) -> *mut u8 {
     __rust_alloc_zeroed(layout.size(), layout.align())
 }
 
+#[cfg(not(test))]
 #[unstable(feature = "allocator_api", issue = "32838")]
 unsafe impl Alloc for Global {
     #[inline]
@@ -182,25 +209,27 @@ unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8 {
         align as *mut u8
     } else {
         let layout = Layout::from_size_align_unchecked(size, align);
-        let ptr = alloc(layout);
-        if !ptr.is_null() {
-            ptr
-        } else {
-            handle_alloc_error(layout)
+        match Global.alloc(layout) {
+            Ok(ptr) => ptr.as_ptr(),
+            Err(_) => handle_alloc_error(layout),
         }
     }
 }
 
+#[cfg(stage0)]
+type BoxFreeAlloc<A> = PhantomData<A>;
+#[cfg(not(stage0))]
+type BoxFreeAlloc<A> = A;
+
 #[cfg_attr(not(test), lang = "box_free")]
 #[inline]
-pub(crate) unsafe fn box_free<T: ?Sized>(ptr: Unique<T>) {
-    let ptr = ptr.as_ptr();
-    let size = size_of_val(&*ptr);
-    let align = min_align_of_val(&*ptr);
-    // We do not allocate for Box<T> when T is ZST, so deallocation is also not necessary.
+pub(crate) unsafe fn box_free<T: ?Sized, A: Stage0Alloc>(ptr: Unique<T>, a: BoxFreeAlloc<A>) {
+    let size = size_of_val(&*ptr.as_ptr());
+    let align = min_align_of_val(&*ptr.as_ptr());
+    // We do not allocate for Box<T, A> when T is ZST, so deallocation is also not necessary.
     if size != 0 {
         let layout = Layout::from_size_align_unchecked(size, align);
-        dealloc(ptr as *mut u8, layout);
+        stage0_unphantom(a).dealloc(NonNull::from(ptr).cast(), layout);
     }
 }
 

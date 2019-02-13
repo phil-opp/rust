@@ -23,7 +23,7 @@ use core::{isize, usize};
 use core::convert::From;
 use core::slice::from_raw_parts_mut;
 
-use crate::alloc::{Global, Alloc, Layout, box_free, handle_alloc_error};
+use crate::alloc::{Global, Alloc, Layout, box_free, handle_alloc_error, stage0_phantom};
 use crate::boxed::Box;
 use crate::rc::is_dangling;
 use crate::string::String;
@@ -619,7 +619,7 @@ impl<T: ?Sized> Arc<T> {
                 value_size);
 
             // Free the allocation without dropping its contents
-            box_free(box_unique);
+            box_free::<_, Global>(box_unique, stage0_phantom(Global));
 
             Arc { ptr: NonNull::new_unchecked(ptr), phantom: PhantomData }
         }
