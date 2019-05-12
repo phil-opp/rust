@@ -113,7 +113,7 @@ impl<T> RawVec<T> {
     /// RawVec with capacity `usize::MAX`. Useful for implementing
     /// delayed allocation.
     pub const fn new() -> Self {
-        Self::new_in(AbortAdapter(Global))
+        Self::new_in(Default::default())
     }
 
     /// Creates a RawVec (on the system heap) with exactly the
