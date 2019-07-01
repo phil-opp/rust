@@ -117,6 +117,7 @@
 #![feature(iter_nth_back)]
 #![feature(never_type)]
 #![feature(exhaustive_patterns)]
+#![feature(const_fn)]
 
 // Allow testing this library
 

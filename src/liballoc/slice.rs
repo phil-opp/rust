@@ -138,6 +138,7 @@ pub use hack::to_vec;
 // `test_permutations` test
 mod hack {
     use core::mem;
+    use core::alloc::Alloc;
 
     use crate::boxed::Box;
     use crate::vec::Vec;
