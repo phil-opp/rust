@@ -11,6 +11,9 @@ use core::ops::{BitOr, BitAnd, BitXor, Sub, RangeBounds};
 use crate::collections::btree_map::{self, BTreeMap, Keys};
 use super::Recover;
 
+use crate::abort_adapter::AbortAdapter;
+use crate::alloc::{Alloc, AllocErr, Global};
+
 // FIXME(conventions): implement bounded iterators
 
 /// A set based on a B-Tree.
@@ -92,8 +95,8 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
 /// [`into_iter`]: struct.BTreeSet.html#method.into_iter
 #[stable(feature = "rust1", since = "1.0.0")]
 #[derive(Debug)]
-pub struct IntoIter<T> {
-    iter: btree_map::IntoIter<T, ()>,
+pub struct IntoIter<T, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    iter: btree_map::IntoIter<T, (), A>,
 }
 
 /// An iterator over a sub-range of items in a `BTreeSet`.

@@ -14,6 +14,9 @@ use super::search::{self, SearchResult::*};
 use UnderflowResult::*;
 use Entry::*;
 
+use crate::abort_adapter::AbortAdapter;
+use crate::alloc::{Alloc, AllocErr, Global};
+
 /// A map based on a B-Tree.
 ///
 /// B-Trees represent a fundamental compromise between cache-efficiency and actually minimizing
@@ -120,13 +123,13 @@ use Entry::*;
 /// *stat += random_stat_buff();
 /// ```
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct BTreeMap<K, V> {
-    root: node::Root<K, V>,
+pub struct BTreeMap<K, V, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    root: node::Root<K, V, A>,
     length: usize,
 }
 
 #[stable(feature = "btree_drop", since = "1.7.0")]
-unsafe impl<#[may_dangle] K, #[may_dangle] V> Drop for BTreeMap<K, V> {
+unsafe impl<#[may_dangle] K, #[may_dangle] V, A> Drop for BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn drop(&mut self) {
         unsafe {
             drop(ptr::read(self).into_iter());
@@ -301,14 +304,14 @@ pub struct IterMut<'a, K: 'a, V: 'a> {
 /// [`into_iter`]: struct.BTreeMap.html#method.into_iter
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct IntoIter<K, V> {
-    front: Handle<NodeRef<marker::Owned, K, V, marker::Leaf>, marker::Edge>,
-    back: Handle<NodeRef<marker::Owned, K, V, marker::Leaf>, marker::Edge>,
+pub struct IntoIter<K, V, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    front: Handle<NodeRef<marker::Owned, K, V, marker::Leaf, A>, marker::Edge>,
+    back: Handle<NodeRef<marker::Owned, K, V, marker::Leaf, A>, marker::Edge>,
     length: usize,
 }
 
 #[stable(feature = "collection_debug", since = "1.17.0")]
-impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for IntoIter<K, V> {
+impl<K: fmt::Debug, V: fmt::Debug, A> fmt::Debug for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let range = Range {
             front: self.front.reborrow(),
@@ -377,13 +380,13 @@ pub struct ValuesMut<'a, K: 'a, V: 'a> {
 /// [`range`]: struct.BTreeMap.html#method.range
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "btree_range", since = "1.17.0")]
-pub struct Range<'a, K: 'a, V: 'a> {
-    front: Handle<NodeRef<marker::Immut<'a>, K, V, marker::Leaf>, marker::Edge>,
-    back: Handle<NodeRef<marker::Immut<'a>, K, V, marker::Leaf>, marker::Edge>,
+pub struct Range<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    front: Handle<NodeRef<marker::Immut<'a>, K, V, marker::Leaf, A>, marker::Edge>,
+    back: Handle<NodeRef<marker::Immut<'a>, K, V, marker::Leaf, A>, marker::Edge>,
 }
 
 #[stable(feature = "collection_debug", since = "1.17.0")]
-impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Range<'_, K, V> {
+impl<K: fmt::Debug, V: fmt::Debug, A> fmt::Debug for Range<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -397,16 +400,16 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Range<'_, K, V> {
 /// [`range_mut`]: struct.BTreeMap.html#method.range_mut
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "btree_range", since = "1.17.0")]
-pub struct RangeMut<'a, K: 'a, V: 'a> {
-    front: Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>,
-    back: Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>,
+pub struct RangeMut<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    front: Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf, A>, marker::Edge>,
+    back: Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf, A>, marker::Edge>,
 
     // Be invariant in `K` and `V`
     _marker: PhantomData<&'a mut (K, V)>,
 }
 
 #[stable(feature = "collection_debug", since = "1.17.0")]
-impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for RangeMut<'_, K, V> {
+impl<K: fmt::Debug, V: fmt::Debug, A> fmt::Debug for RangeMut<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let range = Range {
             front: self.front.reborrow(),
@@ -1278,11 +1281,11 @@ impl<K, V> ExactSizeIterator for IterMut<'_, K, V> {
 impl<K, V> FusedIterator for IterMut<'_, K, V> {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> IntoIterator for BTreeMap<K, V> {
+impl<K, V, A: Alloc> IntoIterator for BTreeMap<K, V, A> where A: Default, A::Err: Debug {
     type Item = (K, V);
-    type IntoIter = IntoIter<K, V>;
+    type IntoIter = IntoIter<K, V, A>;
 
-    fn into_iter(self) -> IntoIter<K, V> {
+    fn into_iter(self) -> IntoIter<K, V, A> {
         let root1 = unsafe { ptr::read(&self.root).into_ref() };
         let root2 = unsafe { ptr::read(&self.root).into_ref() };
         let len = self.length;
@@ -1297,7 +1300,7 @@ impl<K, V> IntoIterator for BTreeMap<K, V> {
 }
 
 #[stable(feature = "btree_drop", since = "1.7.0")]
-impl<K, V> Drop for IntoIter<K, V> {
+impl<K, V, A> Drop for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn drop(&mut self) {
         self.for_each(drop);
         unsafe {
@@ -1317,10 +1320,10 @@ impl<K, V> Drop for IntoIter<K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> Iterator for IntoIter<K, V> {
+impl<K, V, A> Iterator for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (K, V);
 
-    fn next(&mut self) -> Option<(K, V)> {
+    fn next(&mut self) -> Option<(K, V)>{
         if self.length == 0 {
             return None;
         } else {
@@ -1362,7 +1365,7 @@ impl<K, V> Iterator for IntoIter<K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> DoubleEndedIterator for IntoIter<K, V> {
+impl<K, V, A> DoubleEndedIterator for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn next_back(&mut self) -> Option<(K, V)> {
         if self.length == 0 {
             return None;
@@ -1401,14 +1404,14 @@ impl<K, V> DoubleEndedIterator for IntoIter<K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> ExactSizeIterator for IntoIter<K, V> {
+impl<K, V, A> ExactSizeIterator for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn len(&self) -> usize {
         self.length
     }
 }
 
 #[stable(feature = "fused", since = "1.26.0")]
-impl<K, V> FusedIterator for IntoIter<K, V> {}
+impl<K, V, A> FusedIterator for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
 impl<'a, K, V> Iterator for Keys<'a, K, V> {
@@ -1485,7 +1488,7 @@ impl<K, V> Clone for Values<'_, K, V> {
 }
 
 #[stable(feature = "btree_range", since = "1.17.0")]
-impl<'a, K, V> Iterator for Range<'a, K, V> {
+impl<'a, K, V, A> Iterator for Range<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<(&'a K, &'a V)> {
@@ -1527,7 +1530,7 @@ impl<K, V> ExactSizeIterator for ValuesMut<'_, K, V> {
 #[stable(feature = "fused", since = "1.26.0")]
 impl<K, V> FusedIterator for ValuesMut<'_, K, V> {}
 
-impl<'a, K, V> Range<'a, K, V> {
+impl<'a, K, V, A> Range<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     unsafe fn next_unchecked(&mut self) -> (&'a K, &'a V) {
         let handle = self.front;
 
@@ -1560,7 +1563,7 @@ impl<'a, K, V> Range<'a, K, V> {
 }
 
 #[stable(feature = "btree_range", since = "1.17.0")]
-impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
+impl<'a, K, V, A> DoubleEndedIterator for Range<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn next_back(&mut self) -> Option<(&'a K, &'a V)> {
         if self.front == self.back {
             None
@@ -1570,7 +1573,7 @@ impl<'a, K, V> DoubleEndedIterator for Range<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Range<'a, K, V> {
+impl<'a, K, V, A> Range<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     unsafe fn next_back_unchecked(&mut self) -> (&'a K, &'a V) {
         let handle = self.back;
 
@@ -1603,10 +1606,10 @@ impl<'a, K, V> Range<'a, K, V> {
 }
 
 #[stable(feature = "fused", since = "1.26.0")]
-impl<K, V> FusedIterator for Range<'_, K, V> {}
+impl<K, V, A> FusedIterator for Range<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
 #[stable(feature = "btree_range", since = "1.17.0")]
-impl<K, V> Clone for Range<'_, K, V> {
+impl<K, V, A> Clone for Range<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn clone(&self) -> Self {
         Range {
             front: self.front,
@@ -1616,7 +1619,7 @@ impl<K, V> Clone for Range<'_, K, V> {
 }
 
 #[stable(feature = "btree_range", since = "1.17.0")]
-impl<'a, K, V> Iterator for RangeMut<'a, K, V> {
+impl<'a, K, V, A> Iterator for RangeMut<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (&'a K, &'a mut V);
 
     fn next(&mut self) -> Option<(&'a K, &'a mut V)> {
@@ -1628,7 +1631,7 @@ impl<'a, K, V> Iterator for RangeMut<'a, K, V> {
     }
 }
 
-impl<'a, K, V> RangeMut<'a, K, V> {
+impl<'a, K, V, A> RangeMut<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     unsafe fn next_unchecked(&mut self) -> (&'a K, &'a mut V) {
         let handle = ptr::read(&self.front);
 
@@ -1676,9 +1679,9 @@ impl<'a, K, V> DoubleEndedIterator for RangeMut<'a, K, V> {
 }
 
 #[stable(feature = "fused", since = "1.26.0")]
-impl<K, V> FusedIterator for RangeMut<'_, K, V> {}
+impl<K, V, A> FusedIterator for RangeMut<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
-impl<'a, K, V> RangeMut<'a, K, V> {
+impl<'a, K, V, A> RangeMut<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     unsafe fn next_back_unchecked(&mut self) -> (&'a K, &'a mut V) {
         let handle = ptr::read(&self.back);
 
@@ -1808,9 +1811,9 @@ impl<K: Ord, Q: ?Sized, V> Index<&Q> for BTreeMap<K, V>
     }
 }
 
-fn first_leaf_edge<BorrowType, K, V>
-    (mut node: NodeRef<BorrowType, K, V, marker::LeafOrInternal>)
-     -> Handle<NodeRef<BorrowType, K, V, marker::Leaf>, marker::Edge> {
+fn first_leaf_edge<BorrowType, K, V, A: Alloc>
+    (mut node: NodeRef<BorrowType, K, V, marker::LeafOrInternal, A>)
+     -> Handle<NodeRef<BorrowType, K, V, marker::Leaf, A>, marker::Edge> {
     loop {
         match node.force() {
             Leaf(leaf) => return leaf.first_edge(),
@@ -1821,9 +1824,9 @@ fn first_leaf_edge<BorrowType, K, V>
     }
 }
 
-fn last_leaf_edge<BorrowType, K, V>
-    (mut node: NodeRef<BorrowType, K, V, marker::LeafOrInternal>)
-     -> Handle<NodeRef<BorrowType, K, V, marker::Leaf>, marker::Edge> {
+fn last_leaf_edge<BorrowType, K, V, A: Alloc>
+    (mut node: NodeRef<BorrowType, K, V, marker::LeafOrInternal, A>)
+     -> Handle<NodeRef<BorrowType, K, V, marker::Leaf, A>, marker::Edge> {
     loop {
         match node.force() {
             Leaf(leaf) => return leaf.last_edge(),
