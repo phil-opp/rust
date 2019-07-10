@@ -216,9 +216,10 @@ impl<K: Clone, V: Clone> Clone for BTreeMap<K, V> {
     }
 }
 
-impl<K, Q: ?Sized> super::Recover<Q> for BTreeMap<K, ()>
+impl<K, Q: ?Sized, A> super::Recover<Q> for BTreeMap<K, (), A>
     where K: Borrow<Q> + Ord,
-          Q: Ord
+          Q: Ord,
+          A: Alloc + Default, A::Err: Debug
 {
     type Key = K;
 
@@ -246,7 +247,7 @@ impl<K, Q: ?Sized> super::Recover<Q> for BTreeMap<K, ()>
 
     fn replace(&mut self, key: K) -> Option<K> {
         self.ensure_root_is_owned();
-        match search::search_tree::<marker::Mut<'_>, K, (), K>(self.root.as_mut(), &key) {
+        match search::search_tree::<marker::Mut<'_>, K, (), K, A>(self.root.as_mut(), &key) {
             Found(handle) => Some(mem::replace(handle.into_kv_mut().0, key)),
             GoDown(handle) => {
                 VacantEntry {
@@ -270,13 +271,13 @@ impl<K, Q: ?Sized> super::Recover<Q> for BTreeMap<K, ()>
 /// [`iter`]: struct.BTreeMap.html#method.iter
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct Iter<'a, K: 'a, V: 'a> {
-    range: Range<'a, K, V>,
+pub struct Iter<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    range: Range<'a, K, V, A>,
     length: usize,
 }
 
 #[stable(feature = "collection_debug", since = "1.17.0")]
-impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Iter<'_, K, V> {
+impl<K: fmt::Debug, V: fmt::Debug, A> fmt::Debug for Iter<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -291,8 +292,8 @@ impl<K: fmt::Debug, V: fmt::Debug> fmt::Debug for Iter<'_, K, V> {
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "rust1", since = "1.0.0")]
 #[derive(Debug)]
-pub struct IterMut<'a, K: 'a, V: 'a> {
-    range: RangeMut<'a, K, V>,
+pub struct IterMut<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    range: RangeMut<'a, K, V, A>,
     length: usize,
 }
 
@@ -329,12 +330,12 @@ impl<K: fmt::Debug, V: fmt::Debug, A> fmt::Debug for IntoIter<K, V, A> where A: 
 /// [`keys`]: struct.BTreeMap.html#method.keys
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct Keys<'a, K: 'a, V: 'a> {
-    inner: Iter<'a, K, V>,
+pub struct Keys<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    inner: Iter<'a, K, V, A>,
 }
 
 #[stable(feature = "collection_debug", since = "1.17.0")]
-impl<K: fmt::Debug, V> fmt::Debug for Keys<'_, K, V> {
+impl<K: fmt::Debug, V, A> fmt::Debug for Keys<'_, K, V, A> where A: Alloc + Default, A::Err:  Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -348,12 +349,12 @@ impl<K: fmt::Debug, V> fmt::Debug for Keys<'_, K, V> {
 /// [`values`]: struct.BTreeMap.html#method.values
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct Values<'a, K: 'a, V: 'a> {
-    inner: Iter<'a, K, V>,
+pub struct Values<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    inner: Iter<'a, K, V, A>,
 }
 
 #[stable(feature = "collection_debug", since = "1.17.0")]
-impl<K, V: fmt::Debug> fmt::Debug for Values<'_, K, V> {
+impl<K, V: fmt::Debug, A> fmt::Debug for Values<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -368,8 +369,8 @@ impl<K, V: fmt::Debug> fmt::Debug for Values<'_, K, V> {
 /// [`BTreeMap`]: struct.BTreeMap.html
 #[stable(feature = "map_values_mut", since = "1.10.0")]
 #[derive(Debug)]
-pub struct ValuesMut<'a, K: 'a, V: 'a> {
-    inner: IterMut<'a, K, V>,
+pub struct ValuesMut<'a, K: 'a, V: 'a, A= AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug{
+    inner: IterMut<'a, K, V, A>,
 }
 
 /// An iterator over a sub-range of entries in a `BTreeMap`.
@@ -426,20 +427,20 @@ impl<K: fmt::Debug, V: fmt::Debug, A> fmt::Debug for RangeMut<'_, K, V, A> where
 /// [`BTreeMap`]: struct.BTreeMap.html
 /// [`entry`]: struct.BTreeMap.html#method.entry
 #[stable(feature = "rust1", since = "1.0.0")]
-pub enum Entry<'a, K: 'a, V: 'a> {
+pub enum Entry<'a, K: 'a, V: 'a, A= AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
     /// A vacant entry.
     #[stable(feature = "rust1", since = "1.0.0")]
     Vacant(#[stable(feature = "rust1", since = "1.0.0")]
-           VacantEntry<'a, K, V>),
+           VacantEntry<'a, K, V, A>),
 
     /// An occupied entry.
     #[stable(feature = "rust1", since = "1.0.0")]
     Occupied(#[stable(feature = "rust1", since = "1.0.0")]
-             OccupiedEntry<'a, K, V>),
+             OccupiedEntry<'a, K, V, A>),
 }
 
 #[stable(feature= "debug_btree_map", since = "1.12.0")]
-impl<K: Debug + Ord, V: Debug> Debug for Entry<'_, K, V> {
+impl<K: Debug + Ord, V: Debug, A> Debug for Entry<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Vacant(ref v) => f.debug_tuple("Entry")
@@ -457,9 +458,9 @@ impl<K: Debug + Ord, V: Debug> Debug for Entry<'_, K, V> {
 ///
 /// [`Entry`]: enum.Entry.html
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct VacantEntry<'a, K: 'a, V: 'a> {
+pub struct VacantEntry<'a, K: 'a, V: 'a, A> where A: Alloc + Default, A::Err: Debug {
     key: K,
-    handle: Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge>,
+    handle: Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf, A>, marker::Edge>,
     length: &'a mut usize,
 
     // Be invariant in `K` and `V`
@@ -467,7 +468,7 @@ pub struct VacantEntry<'a, K: 'a, V: 'a> {
 }
 
 #[stable(feature= "debug_btree_map", since = "1.12.0")]
-impl<K: Debug + Ord, V> Debug for VacantEntry<'_, K, V> {
+impl<K: Debug + Ord, V, A> Debug for VacantEntry<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("VacantEntry")
          .field(self.key())
@@ -480,8 +481,8 @@ impl<K: Debug + Ord, V> Debug for VacantEntry<'_, K, V> {
 ///
 /// [`Entry`]: enum.Entry.html
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct OccupiedEntry<'a, K: 'a, V: 'a> {
-    handle: Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>, marker::KV>,
+pub struct OccupiedEntry<'a, K: 'a, V: 'a, A = AbortAdapter<Global>> where A: Alloc + Default, A::Err: Debug {
+    handle: Handle<NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal, A>, marker::KV>,
 
     length: &'a mut usize,
 
@@ -490,7 +491,7 @@ pub struct OccupiedEntry<'a, K: 'a, V: 'a> {
 }
 
 #[stable(feature= "debug_btree_map", since = "1.12.0")]
-impl<K: Debug + Ord, V: Debug> Debug for OccupiedEntry<'_, K, V> {
+impl<K: Debug + Ord, V: Debug, A> Debug for OccupiedEntry<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("OccupiedEntry")
          .field("key", self.key())
@@ -503,6 +504,16 @@ impl<K: Debug + Ord, V: Debug> Debug for OccupiedEntry<'_, K, V> {
 struct MergeIter<K, V, I: Iterator<Item = (K, V)>> {
     left: Peekable<I>,
     right: Peekable<I>,
+}
+
+impl<K: Ord, V, A> BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn new_in(_allocator: A) -> BTreeMap<K, V, A> {
+        BTreeMap {
+            root: node::Root::shared_empty_root(),
+            length: 0,
+        }
+    }
 }
 
 impl<K: Ord, V> BTreeMap<K, V> {
@@ -527,7 +538,9 @@ impl<K: Ord, V> BTreeMap<K, V> {
             length: 0,
         }
     }
+}
 
+impl<K: Ord, V, A> BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     /// Clears the map, removing all values.
     ///
     /// # Examples
@@ -544,7 +557,7 @@ impl<K: Ord, V> BTreeMap<K, V> {
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
     pub fn clear(&mut self) {
-        *self = BTreeMap::new();
+        *self = BTreeMap::new_in(A::default());
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -773,8 +786,8 @@ impl<K: Ord, V> BTreeMap<K, V> {
         }
 
         // First, we merge `self` and `other` into a sorted sequence in linear time.
-        let self_iter = mem::replace(self, BTreeMap::new()).into_iter();
-        let other_iter = mem::replace(other, BTreeMap::new()).into_iter();
+        let self_iter = mem::replace(self, BTreeMap::new_in(A::default())).into_iter();
+        let other_iter = mem::replace(other, BTreeMap::new_in(A::default())).into_iter();
         let iter = MergeIter {
             left: self_iter.peekable(),
             right: other_iter.peekable(),
@@ -815,7 +828,7 @@ impl<K: Ord, V> BTreeMap<K, V> {
     /// assert_eq!(Some((&5, &"b")), map.range(4..).next());
     /// ```
     #[stable(feature = "btree_range", since = "1.17.0")]
-    pub fn range<T: ?Sized, R>(&self, range: R) -> Range<'_, K, V>
+    pub fn range<T: ?Sized, R>(&self, range: R) -> Range<'_, K, V, A>
         where T: Ord, K: Borrow<T>, R: RangeBounds<T>
     {
         let root1 = self.root.as_ref();
@@ -856,7 +869,7 @@ impl<K: Ord, V> BTreeMap<K, V> {
     /// }
     /// ```
     #[stable(feature = "btree_range", since = "1.17.0")]
-    pub fn range_mut<T: ?Sized, R>(&mut self, range: R) -> RangeMut<'_, K, V>
+    pub fn range_mut<T: ?Sized, R>(&mut self, range: R) -> RangeMut<'_, K, V, A>
         where T: Ord, K: Borrow<T>, R: RangeBounds<T>
     {
         let root1 = self.root.as_mut();
@@ -889,7 +902,7 @@ impl<K: Ord, V> BTreeMap<K, V> {
     /// assert_eq!(count["a"], 3);
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn entry(&mut self, key: K) -> Entry<'_, K, V> {
+    pub fn entry(&mut self, key: K) -> Entry<'_, K, V, A> {
         // FIXME(@porglezomp) Avoid allocating if we don't insert
         self.ensure_root_is_owned();
         match search::search_tree(self.root.as_mut(), &key) {
@@ -1016,12 +1029,12 @@ impl<K: Ord, V> BTreeMap<K, V> {
         where K: Borrow<Q>
     {
         if self.is_empty() {
-            return Self::new();
+            return Self::new_in(A::default());
         }
 
         let total_num = self.len();
 
-        let mut right = Self::new();
+        let mut right = Self::new_in(A::default());
         right.root = node::Root::new_leaf();
         for _ in 0..(self.root.as_ref().height()) {
             right.root.push_level();
@@ -1071,10 +1084,10 @@ impl<K: Ord, V> BTreeMap<K, V> {
 
     /// Calculates the number of elements if it is incorrect.
     fn recalc_length(&mut self) {
-        fn dfs<'a, K, V>(
-            node: NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal>
+        fn dfs<'a, K, V, A>(
+            node: NodeRef<marker::Immut<'a>, K, V, marker::LeafOrInternal, A>
         ) -> usize
-        where K: 'a, V: 'a
+        where K: 'a, V: 'a, A: Alloc + Default, A::Err: Debug
         {
             let mut res = node.len();
 
@@ -1171,17 +1184,17 @@ impl<K: Ord, V> BTreeMap<K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K: 'a, V: 'a> IntoIterator for &'a BTreeMap<K, V> {
+impl<'a, K: 'a, V: 'a, A> IntoIterator for &'a BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, V>;
+    type IntoIter = Iter<'a, K, V, A>;
 
-    fn into_iter(self) -> Iter<'a, K, V> {
+    fn into_iter(self) -> Iter<'a, K, V, A> {
         self.iter()
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
+impl<'a, K: 'a, V: 'a, A> Iterator for Iter<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<(&'a K, &'a V)> {
@@ -1199,10 +1212,10 @@ impl<'a, K: 'a, V: 'a> Iterator for Iter<'a, K, V> {
 }
 
 #[stable(feature = "fused", since = "1.26.0")]
-impl<K, V> FusedIterator for Iter<'_, K, V> {}
+impl<K, V, A> FusedIterator for Iter<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K: 'a, V: 'a> DoubleEndedIterator for Iter<'a, K, V> {
+impl<'a, K: 'a, V: 'a, A> DoubleEndedIterator for Iter<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn next_back(&mut self) -> Option<(&'a K, &'a V)> {
         if self.length == 0 {
             None
@@ -1214,14 +1227,14 @@ impl<'a, K: 'a, V: 'a> DoubleEndedIterator for Iter<'a, K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> ExactSizeIterator for Iter<'_, K, V> {
+impl<K, V, A> ExactSizeIterator for Iter<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn len(&self) -> usize {
         self.length
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> Clone for Iter<'_, K, V> {
+impl<K, V, A> Clone for Iter<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn clone(&self) -> Self {
         Iter {
             range: self.range.clone(),
@@ -1231,17 +1244,17 @@ impl<K, V> Clone for Iter<'_, K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K: 'a, V: 'a> IntoIterator for &'a mut BTreeMap<K, V> {
+impl<'a, K: 'a, V: 'a, A> IntoIterator for &'a mut BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (&'a K, &'a mut V);
-    type IntoIter = IterMut<'a, K, V>;
+    type IntoIter = IterMut<'a, K, V, A>;
 
-    fn into_iter(self) -> IterMut<'a, K, V> {
+    fn into_iter(self) -> IterMut<'a, K, V, A> {
         self.iter_mut()
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K: 'a, V: 'a> Iterator for IterMut<'a, K, V> {
+impl<'a, K: 'a, V: 'a, A> Iterator for IterMut<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = (&'a K, &'a mut V);
 
     fn next(&mut self) -> Option<(&'a K, &'a mut V)> {
@@ -1414,7 +1427,7 @@ impl<K, V, A> ExactSizeIterator for IntoIter<K, V, A> where A: Alloc + Default, 
 impl<K, V, A> FusedIterator for IntoIter<K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K, V> Iterator for Keys<'a, K, V> {
+impl<'a, K, V, A> Iterator for Keys<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = &'a K;
 
     fn next(&mut self) -> Option<&'a K> {
@@ -1427,31 +1440,31 @@ impl<'a, K, V> Iterator for Keys<'a, K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K, V> DoubleEndedIterator for Keys<'a, K, V> {
+impl<'a, K, V, A> DoubleEndedIterator for Keys<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn next_back(&mut self) -> Option<&'a K> {
         self.inner.next_back().map(|(k, _)| k)
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> ExactSizeIterator for Keys<'_, K, V> {
+impl<K, V, A> ExactSizeIterator for Keys<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
 #[stable(feature = "fused", since = "1.26.0")]
-impl<K, V> FusedIterator for Keys<'_, K, V> {}
+impl<K, V, A> FusedIterator for Keys<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> Clone for Keys<'_, K, V> {
+impl<K, V, A> Clone for Keys<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn clone(&self) -> Self {
         Keys { inner: self.inner.clone() }
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K, V> Iterator for Values<'a, K, V> {
+impl<'a, K, V, A> Iterator for Values<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<&'a V> {
@@ -1464,24 +1477,24 @@ impl<'a, K, V> Iterator for Values<'a, K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<'a, K, V> DoubleEndedIterator for Values<'a, K, V> {
+impl<'a, K, V, A> DoubleEndedIterator for Values<'a, K, V, A> where A: Alloc + Default, A::Err: Debug{
     fn next_back(&mut self) -> Option<&'a V> {
         self.inner.next_back().map(|(_, v)| v)
     }
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> ExactSizeIterator for Values<'_, K, V> {
+impl<K, V, A> ExactSizeIterator for Values<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn len(&self) -> usize {
         self.inner.len()
     }
 }
 
 #[stable(feature = "fused", since = "1.26.0")]
-impl<K, V> FusedIterator for Values<'_, K, V> {}
+impl<K, V, A> FusedIterator for Values<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {}
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K, V> Clone for Values<'_, K, V> {
+impl<K, V, A> Clone for Values<'_, K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn clone(&self) -> Self {
         Values { inner: self.inner.clone() }
     }
@@ -1837,13 +1850,13 @@ fn last_leaf_edge<BorrowType, K, V, A: Alloc>
     }
 }
 
-fn range_search<BorrowType, K, V, Q: ?Sized, R: RangeBounds<Q>>(
-    root1: NodeRef<BorrowType, K, V, marker::LeafOrInternal>,
-    root2: NodeRef<BorrowType, K, V, marker::LeafOrInternal>,
+fn range_search<BorrowType, K, V, Q: ?Sized, R: RangeBounds<Q>, A>(
+    root1: NodeRef<BorrowType, K, V, marker::LeafOrInternal, A>,
+    root2: NodeRef<BorrowType, K, V, marker::LeafOrInternal, A>,
     range: R
-)-> (Handle<NodeRef<BorrowType, K, V, marker::Leaf>, marker::Edge>,
-     Handle<NodeRef<BorrowType, K, V, marker::Leaf>, marker::Edge>)
-        where Q: Ord, K: Borrow<Q>
+)-> (Handle<NodeRef<BorrowType, K, V, marker::Leaf, A>, marker::Edge>,
+     Handle<NodeRef<BorrowType, K, V, marker::Leaf, A>, marker::Edge>)
+        where Q: Ord, K: Borrow<Q>, A: Alloc + Default, A::Err: Debug
 {
     match (range.start_bound(), range.end_bound()) {
         (Excluded(s), Excluded(e)) if s==e =>
@@ -1922,7 +1935,7 @@ unsafe fn unwrap_unchecked<T>(val: Option<T>) -> T {
     })
 }
 
-impl<K, V> BTreeMap<K, V> {
+impl<K, V, A> BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     /// Gets an iterator over the entries of the map, sorted by key.
     ///
     /// # Examples
@@ -1945,7 +1958,7 @@ impl<K, V> BTreeMap<K, V> {
     /// assert_eq!((*first_key, *first_value), (1, "a"));
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn iter(&self) -> Iter<'_, K, V> {
+    pub fn iter(&self) -> Iter<'_, K, V, A> {
         Iter {
             range: Range {
                 front: first_leaf_edge(self.root.as_ref()),
@@ -1977,7 +1990,7 @@ impl<K, V> BTreeMap<K, V> {
     /// }
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V, A> {
         let root1 = self.root.as_mut();
         let root2 = unsafe { ptr::read(&root1) };
         IterMut {
@@ -2007,7 +2020,7 @@ impl<K, V> BTreeMap<K, V> {
     /// assert_eq!(keys, [1, 2]);
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn keys<'a>(&'a self) -> Keys<'a, K, V> {
+    pub fn keys<'a>(&'a self) -> Keys<'a, K, V, A> {
         Keys { inner: self.iter() }
     }
 
@@ -2028,7 +2041,7 @@ impl<K, V> BTreeMap<K, V> {
     /// assert_eq!(values, ["hello", "goodbye"]);
     /// ```
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn values<'a>(&'a self) -> Values<'a, K, V> {
+    pub fn values<'a>(&'a self) -> Values<'a, K, V, A> {
         Values { inner: self.iter() }
     }
 
@@ -2054,7 +2067,7 @@ impl<K, V> BTreeMap<K, V> {
     ///                     String::from("goodbye!")]);
     /// ```
     #[stable(feature = "map_values_mut", since = "1.10.0")]
-    pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
+    pub fn values_mut(&mut self) -> ValuesMut<'_, K, V, A> {
         ValuesMut { inner: self.iter_mut() }
     }
 
@@ -2220,7 +2233,7 @@ impl<'a, K: Ord, V: Default> Entry<'a, K, V> {
 
 }
 
-impl<'a, K: Ord, V> VacantEntry<'a, K, V> {
+impl<'a, K: Ord, V, A> VacantEntry<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     /// Gets a reference to the key that would be used when inserting a value
     /// through the VacantEntry.
     ///
@@ -2316,7 +2329,7 @@ impl<'a, K: Ord, V> VacantEntry<'a, K, V> {
     }
 }
 
-impl<'a, K: Ord, V> OccupiedEntry<'a, K, V> {
+impl<'a, K: Ord, V, A> OccupiedEntry<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     /// Gets a reference to the key in the entry.
     ///
     /// # Examples
@@ -2525,15 +2538,15 @@ impl<'a, K: Ord, V> OccupiedEntry<'a, K, V> {
     }
 }
 
-enum UnderflowResult<'a, K, V> {
+enum UnderflowResult<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     AtRoot,
-    EmptyParent(NodeRef<marker::Mut<'a>, K, V, marker::Internal>),
-    Merged(NodeRef<marker::Mut<'a>, K, V, marker::Internal>),
-    Stole(NodeRef<marker::Mut<'a>, K, V, marker::Internal>),
+    EmptyParent(NodeRef<marker::Mut<'a>, K, V, marker::Internal, A>),
+    Merged(NodeRef<marker::Mut<'a>, K, V, marker::Internal, A>),
+    Stole(NodeRef<marker::Mut<'a>, K, V, marker::Internal, A>),
 }
 
-fn handle_underfull_node<'a, K, V>(node: NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal>)
-                                   -> UnderflowResult<'a, K, V> {
+fn handle_underfull_node<'a, K, V, A>(node: NodeRef<marker::Mut<'a>, K, V, marker::LeafOrInternal, A>)
+                                   -> UnderflowResult<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     let parent = if let Ok(parent) = node.ascend() {
         parent
     } else {

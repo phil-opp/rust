@@ -1030,7 +1030,7 @@ impl<BorrowType, K, V, NodeType, A: Alloc>
     }
 }
 
-impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge> {
+impl<'a, K, V, A> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf, A>, marker::Edge> where A: Alloc + Default, A::Err: Debug {
     /// Inserts a new key/value pair between the key/value pairs to the right and left of
     /// this edge. This method assumes that there is enough space in the node for the new
     /// pair to fit.
@@ -1056,7 +1056,7 @@ impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Leaf>, marker::Edge
     ///
     /// The returned pointer points to the inserted value.
     pub fn insert(mut self, key: K, val: V)
-            -> (InsertResult<'a, K, V, marker::Leaf>, *mut V) {
+            -> (InsertResult<'a, K, V, marker::Leaf, A>, *mut V) {
 
         if self.node.len() < CAPACITY {
             let ptr = self.insert_fit(key, val);
@@ -1095,11 +1095,11 @@ impl<'a, K, V, A: Alloc> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal,
     }
 }
 
-impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::Edge> {
+impl<'a, K, V, A> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal, A>, marker::Edge> where A: Alloc + Default, A::Err: Debug {
     /// Unsafely asserts to the compiler some static information about whether the underlying
     /// node of this handle is a `Leaf`.
     unsafe fn cast_unchecked<NewType>(&mut self)
-            -> Handle<NodeRef<marker::Mut<'_>, K, V, NewType>, marker::Edge> {
+            -> Handle<NodeRef<marker::Mut<'_>, K, V, NewType, A>, marker::Edge> {
 
         Handle::new_edge(self.node.cast_unchecked(), self.idx)
     }
@@ -1107,7 +1107,7 @@ impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::
     /// Inserts a new key/value pair and an edge that will go to the right of that new pair
     /// between this edge and the key/value pair to the right of this edge. This method assumes
     /// that there is enough space in the node for the new pair to fit.
-    fn insert_fit(&mut self, key: K, val: V, edge: Root<K, V>) {
+    fn insert_fit(&mut self, key: K, val: V, edge: Root<K, V, A>) {
         // Necessary for correctness, but in an internal module
         debug_assert!(self.node.len() < CAPACITY);
         debug_assert!(edge.height == self.node.height - 1);
@@ -1134,8 +1134,8 @@ impl<'a, K, V> Handle<NodeRef<marker::Mut<'a>, K, V, marker::Internal>, marker::
     /// Inserts a new key/value pair and an edge that will go to the right of that new pair
     /// between this edge and the key/value pair to the right of this edge. This method splits
     /// the node if there isn't enough room.
-    pub fn insert(mut self, key: K, val: V, edge: Root<K, V>)
-            -> InsertResult<'a, K, V, marker::Internal> {
+    pub fn insert(mut self, key: K, val: V, edge: Root<K, V, A>)
+            -> InsertResult<'a, K, V, marker::Internal, A> {
 
         // Necessary for correctness, but this is an internal module
         debug_assert!(edge.height == self.node.height - 1);
@@ -1667,9 +1667,9 @@ pub enum ForceResult<Leaf, Internal> {
     Internal(Internal)
 }
 
-pub enum InsertResult<'a, K, V, Type> {
-    Fit(Handle<NodeRef<marker::Mut<'a>, K, V, Type>, marker::KV>),
-    Split(NodeRef<marker::Mut<'a>, K, V, Type>, K, V, Root<K, V>)
+pub enum InsertResult<'a, K, V, Type, A> where A: Alloc + Default, A::Err: Debug {
+    Fit(Handle<NodeRef<marker::Mut<'a>, K, V, Type, A>, marker::KV>),
+    Split(NodeRef<marker::Mut<'a>, K, V, Type, A>, K, V, Root<K, V, A>)
 }
 
 pub mod marker {
