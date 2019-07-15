@@ -68,6 +68,7 @@ use core::ops::Bound::{Excluded, Included, Unbounded};
 use core::ptr::{self, NonNull};
 use core::slice::{self, SliceIndex};
 use crate::abort_adapter::AbortAdapter;
+use core::fmt::Debug;
 
 use crate::alloc::{Alloc, AllocErr, Global};
 use crate::borrow::{ToOwned, Cow};
@@ -1374,7 +1375,7 @@ impl<T: Clone, A: Alloc> Vec<T, A> {
     }
 }
 
-impl<T: Clone> Vec<T> {
+impl<T: Clone, A> Vec<T, A> where A: Alloc + Default, A::Err: Debug {
     /// Clones and appends all elements in a slice to the `Vec`.
     ///
     /// Iterates over the slice `other`, clones each element, and then appends
@@ -1684,10 +1685,12 @@ unsafe impl<T: ?Sized> IsZero for *mut T {
 ////////////////////////////////////////////////////////////////////////////////
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<T: Clone> Clone for Vec<T> {
+impl<T: Clone, A> Clone for Vec<T, A> where A: Alloc + Default, A::Err: Debug {
     #[cfg(not(test))]
-    fn clone(&self) -> Vec<T> {
-        <[T]>::to_vec(&**self)
+    fn clone(&self) -> Vec<T, A> {
+        let mut x = Vec::new_in(A::default());
+        x.extend_from_slice(self);
+        x
     }
 
     // HACK(japaric): with cfg(test) the inherent `[T]::to_vec` method, which is
@@ -1695,12 +1698,12 @@ impl<T: Clone> Clone for Vec<T> {
     // `slice::to_vec`  function which is only available with cfg(test)
     // NB see the slice::hack module in slice.rs for more information
     #[cfg(test)]
-    fn clone(&self) -> Vec<T> {
+    fn clone(&self) -> Vec<T, A> {
         crate::slice::to_vec(&**self)
     }
 
-    fn clone_from(&mut self, other: &Vec<T>) {
-        other.as_slice().clone_into(self);
+    fn clone_from(&mut self, other: &Vec<T, A>) {
+        self.extend_from_slice(other);
     }
 }
 
@@ -1845,8 +1848,8 @@ trait SpecExtend<T, I> {
     fn spec_extend(&mut self, iter: I);
 }
 
-impl<T, I> SpecExtend<T, I> for Vec<T>
-    where I: Iterator<Item=T>,
+impl<T, I, A> SpecExtend<T, I> for Vec<T, A>
+    where I: Iterator<Item=T>, A: Alloc + Default, A::Err: Debug
 {
     default fn from_iter(mut iterator: I) -> Self {
         // Unroll the first iteration, as the vector is going to be
@@ -1855,10 +1858,10 @@ impl<T, I> SpecExtend<T, I> for Vec<T>
         // vector being full in the few subsequent loop iterations.
         // So we get better branch prediction.
         let mut vector = match iterator.next() {
-            None => return Vec::new(),
+            None => return Vec::new_in(A::default()),
             Some(element) => {
                 let (lower, _) = iterator.size_hint();
-                let mut vector = Vec::with_capacity(lower.saturating_add(1));
+                let mut vector = Vec::with_capacity_in(lower.saturating_add(1), A::default()).unwrap();
                 unsafe {
                     ptr::write(vector.get_unchecked_mut(0), element);
                     vector.set_len(1);
@@ -1866,7 +1869,7 @@ impl<T, I> SpecExtend<T, I> for Vec<T>
                 vector
             }
         };
-        <Vec<T> as SpecExtend<T, I>>::spec_extend(&mut vector, iterator);
+        <Vec<T, A> as SpecExtend<T, I>>::spec_extend(&mut vector, iterator);
         vector
     }
 
@@ -1875,11 +1878,11 @@ impl<T, I> SpecExtend<T, I> for Vec<T>
     }
 }
 
-impl<T, I> SpecExtend<T, I> for Vec<T>
-    where I: TrustedLen<Item=T>,
+impl<T, I, A> SpecExtend<T, I> for Vec<T, A>
+    where I: TrustedLen<Item=T>, A: Alloc + Default, A::Err: Debug
 {
     default fn from_iter(iterator: I) -> Self {
-        let mut vector = Vec::new();
+        let mut vector = Vec::new_in(A::default());
         vector.spec_extend(iterator);
         vector
     }
@@ -1938,9 +1941,9 @@ impl<T> SpecExtend<T, IntoIter<T>> for Vec<T> {
     }
 }
 
-impl<'a, T: 'a, I> SpecExtend<&'a T, I> for Vec<T>
+impl<'a, T: 'a, I, A> SpecExtend<&'a T, I> for Vec<T, A>
     where I: Iterator<Item=&'a T>,
-          T: Clone,
+          T: Clone, A: Alloc + Default, A::Err: Debug
 {
     default fn from_iter(iterator: I) -> Self {
         SpecExtend::from_iter(iterator.cloned())
@@ -1951,8 +1954,8 @@ impl<'a, T: 'a, I> SpecExtend<&'a T, I> for Vec<T>
     }
 }
 
-impl<'a, T: 'a> SpecExtend<&'a T, slice::Iter<'a, T>> for Vec<T>
-    where T: Copy,
+impl<'a, T: 'a, A> SpecExtend<&'a T, slice::Iter<'a, T>> for Vec<T, A>
+    where T: Copy, A: Alloc + Default, A::Err: Debug
 {
     fn spec_extend(&mut self, iterator: slice::Iter<'a, T>) {
         let slice = iterator.as_slice();

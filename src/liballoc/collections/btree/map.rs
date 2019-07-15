@@ -1514,7 +1514,7 @@ impl<'a, K, V, A> Iterator for Range<'a, K, V, A> where A: Alloc + Default, A::E
 }
 
 #[stable(feature = "map_values_mut", since = "1.10.0")]
-impl<'a, K, V> Iterator for ValuesMut<'a, K, V> {
+impl<'a, K, V, A> Iterator for ValuesMut<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     type Item = &'a mut V;
 
     fn next(&mut self) -> Option<&'a mut V> {
@@ -1800,7 +1800,7 @@ impl<K: Ord, V: Ord> Ord for BTreeMap<K, V> {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl<K: Debug, V: Debug> Debug for BTreeMap<K, V> {
+impl<K: Debug, V: Debug, A> Debug for BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
@@ -2110,7 +2110,7 @@ impl<K, V, A> BTreeMap<K, V, A> where A: Alloc + Default, A::Err: Debug {
     }
 }
 
-impl<'a, K: Ord, V> Entry<'a, K, V> {
+impl<'a, K: Ord, V, A> Entry<'a, K, V, A> where A: Alloc + Default, A::Err: Debug {
     /// Ensures a value is in the entry by inserting the default if empty, and returns
     /// a mutable reference to the value in the entry.
     ///

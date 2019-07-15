@@ -203,8 +203,8 @@ pub struct Root<K, V, A: Alloc = AbortAdapter<Global>> {
     height: usize,
 }
 
-unsafe impl<K: Sync, V: Sync> Sync for Root<K, V> { }
-unsafe impl<K: Send, V: Send> Send for Root<K, V> { }
+unsafe impl<K: Sync, V: Sync, A> Sync for Root<K, V, A> where A: Alloc + Default, A::Err: Debug { }
+unsafe impl<K: Send, V: Send, A> Send for Root<K, V, A> where A: Alloc + Default, A::Err: Debug { }
 
 impl<K, V, A: Alloc> Root<K, V, A> {
     pub fn is_shared_root(&self) -> bool {

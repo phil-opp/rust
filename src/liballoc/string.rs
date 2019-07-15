@@ -54,13 +54,15 @@ use core::ops::{self, Add, AddAssign, Index, IndexMut, RangeBounds};
 use core::ops::Bound::{Excluded, Included, Unbounded};
 use core::ptr;
 use core::str::{pattern::Pattern, lossy};
+use core::fmt::Debug;
 
-use crate::alloc::AllocErr;
+use crate::alloc::{Alloc, AllocErr, Global};
 use crate::borrow::{Cow, ToOwned};
 use crate::collections::CollectionAllocErr;
 use crate::boxed::Box;
 use crate::str::{self, from_boxed_utf8_unchecked, FromStr, Utf8Error, Chars};
 use crate::vec::Vec;
+use crate::abort_adapter::AbortAdapter;
 
 /// A UTF-8 encoded, growable string.
 ///
@@ -279,10 +281,9 @@ use crate::vec::Vec;
 /// [`&str`]: ../../std/primitive.str.html
 /// [`Deref`]: ../../std/ops/trait.Deref.html
 /// [`as_str()`]: struct.String.html#method.as_str
-#[derive(PartialOrd, Eq, Ord)]
 #[stable(feature = "rust1", since = "1.0.0")]
-pub struct String {
-    vec: Vec<u8>,
+pub struct String<A: Alloc = AbortAdapter<Global>> {
+    vec: Vec<u8, A>,
 }
 
 /// A possible error value when converting a `String` from a UTF-8 byte vector.
@@ -731,7 +732,16 @@ impl String {
     pub unsafe fn from_utf8_unchecked(bytes: Vec<u8>) -> String {
         String { vec: bytes }
     }
+}
 
+impl<A> String<A> where A: Alloc+ Default, A::Err: Debug {
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn new_in(allocator:A) -> Self {
+        String { vec: Vec::new_in(allocator) }
+    }
+}
+
+impl<A> String<A> where A: Alloc+ Default, A::Err: Debug {
     /// Converts a `String` into a byte vector.
     ///
     /// This consumes the `String`, so we do not need to copy its contents.
@@ -748,7 +758,7 @@ impl String {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn into_bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8, A> {
         self.vec
     }
 
@@ -922,7 +932,9 @@ impl String {
     pub fn reserve_exact(&mut self, additional: usize) {
         self.vec.reserve_exact(additional)
     }
+}
 
+impl<A> String<AbortAdapter<A>> where A: Alloc+ Default, A::Err: Debug {
     /// Tries to reserve capacity for at least `additional` more elements to be inserted
     /// in the given `String`. The collection may reserve more space to avoid
     /// frequent reallocations. After calling `reserve`, capacity will be
@@ -954,7 +966,7 @@ impl String {
     /// # process_data("rust").expect("why is the test harness OOMing on 4 bytes?");
     /// ```
     #[unstable(feature = "try_reserve", reason = "new API", issue="48043")]
-    pub fn try_reserve(&mut self, additional: usize) -> Result<(), CollectionAllocErr<AllocErr>> {
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), CollectionAllocErr<A::Err>> {
         self.vec.try_reserve(additional)
     }
 
@@ -992,10 +1004,12 @@ impl String {
     /// # process_data("rust").expect("why is the test harness OOMing on 4 bytes?");
     /// ```
     #[unstable(feature = "try_reserve", reason = "new API", issue="48043")]
-    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), CollectionAllocErr<AllocErr>>  {
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), CollectionAllocErr<A::Err>>  {
         self.vec.try_reserve_exact(additional)
     }
+}
 
+impl<A> String<A> where A: Alloc+ Default, A::Err: Debug {
     /// Shrinks the capacity of this `String` to match its length.
     ///
     /// # Examples
@@ -1357,7 +1371,7 @@ impl String {
     /// ```
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
-    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+    pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8, A> {
         &mut self.vec
     }
 
@@ -1396,7 +1410,9 @@ impl String {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+}
 
+impl String {
     /// Splits the string into two at the given index.
     ///
     /// Returns a newly allocated `String`. `self` contains bytes `[0, at)`, and
@@ -1427,7 +1443,9 @@ impl String {
         let other = self.vec.split_off(at);
         unsafe { String::from_utf8_unchecked(other) }
     }
+}
 
+impl<A> String<A> where A: Alloc + Default, A::Err: Debug {
     /// Truncates this `String`, removing all contents.
     ///
     /// While this means the `String` will have a length of zero, it does not
@@ -1451,7 +1469,9 @@ impl String {
     pub fn clear(&mut self) {
         self.vec.clear()
     }
+}
 
+impl String {
     /// Creates a draining iterator that removes the specified range in the `String`
     /// and yields the removed `chars`.
     ///
@@ -1680,7 +1700,7 @@ impl fmt::Display for FromUtf16Error {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl Clone for String {
+impl<A> Clone for String<A> where A: Alloc + Default, A::Err: Debug {
     fn clone(&self) -> Self {
         String { vec: self.vec.clone() }
     }
@@ -1815,14 +1835,31 @@ impl<'a, 'b> Pattern<'a> for &'b String {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl PartialEq for String {
+impl<A: Alloc> PartialEq for String<A> {
     #[inline]
-    fn eq(&self, other: &String) -> bool {
+    fn eq(&self, other: &String<A>) -> bool {
         PartialEq::eq(&self[..], &other[..])
     }
     #[inline]
-    fn ne(&self, other: &String) -> bool {
+    fn ne(&self, other: &String<A>) -> bool {
         PartialEq::ne(&self[..], &other[..])
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A: Alloc> Eq for String<A> {}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A: Alloc> PartialOrd for String<A> {
+    fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
+        PartialOrd::partial_cmp(&self[..], &other[..])
+    }
+}
+
+#[stable(feature = "rust1", since = "1.0.0")]
+impl<A: Alloc> Ord for String<A> {
+    fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
+        Ord::cmp(&self[..], &other[..])
     }
 }
 
@@ -1863,7 +1900,7 @@ impl Default for String {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl fmt::Display for String {
+impl<A> fmt::Display for String<A> where A: Alloc + Default, A::Err: Debug {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
@@ -1871,7 +1908,7 @@ impl fmt::Display for String {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl fmt::Debug for String {
+impl<A> fmt::Debug for String<A> where A: Alloc + Default, A::Err: Debug {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
@@ -1946,7 +1983,7 @@ impl AddAssign<&str> for String {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl ops::Index<ops::Range<usize>> for String {
+impl<A: Alloc> ops::Index<ops::Range<usize>> for String<A> {
     type Output = str;
 
     #[inline]
@@ -1955,7 +1992,7 @@ impl ops::Index<ops::Range<usize>> for String {
     }
 }
 #[stable(feature = "rust1", since = "1.0.0")]
-impl ops::Index<ops::RangeTo<usize>> for String {
+impl<A: Alloc> ops::Index<ops::RangeTo<usize>> for String<A> {
     type Output = str;
 
     #[inline]
@@ -1964,7 +2001,7 @@ impl ops::Index<ops::RangeTo<usize>> for String {
     }
 }
 #[stable(feature = "rust1", since = "1.0.0")]
-impl ops::Index<ops::RangeFrom<usize>> for String {
+impl<A: Alloc> ops::Index<ops::RangeFrom<usize>> for String<A> {
     type Output = str;
 
     #[inline]
@@ -1973,7 +2010,7 @@ impl ops::Index<ops::RangeFrom<usize>> for String {
     }
 }
 #[stable(feature = "rust1", since = "1.0.0")]
-impl ops::Index<ops::RangeFull> for String {
+impl<A: Alloc> ops::Index<ops::RangeFull> for String<A> {
     type Output = str;
 
     #[inline]
@@ -1982,7 +2019,7 @@ impl ops::Index<ops::RangeFull> for String {
     }
 }
 #[stable(feature = "inclusive_range", since = "1.26.0")]
-impl ops::Index<ops::RangeInclusive<usize>> for String {
+impl<A: Alloc> ops::Index<ops::RangeInclusive<usize>> for String<A> {
     type Output = str;
 
     #[inline]
@@ -1991,7 +2028,7 @@ impl ops::Index<ops::RangeInclusive<usize>> for String {
     }
 }
 #[stable(feature = "inclusive_range", since = "1.26.0")]
-impl ops::Index<ops::RangeToInclusive<usize>> for String {
+impl<A: Alloc> ops::Index<ops::RangeToInclusive<usize>> for String<A> {
     type Output = str;
 
     #[inline]
@@ -2001,42 +2038,42 @@ impl ops::Index<ops::RangeToInclusive<usize>> for String {
 }
 
 #[stable(feature = "derefmut_for_string", since = "1.3.0")]
-impl ops::IndexMut<ops::Range<usize>> for String {
+impl<A: Alloc> ops::IndexMut<ops::Range<usize>> for String<A> {
     #[inline]
     fn index_mut(&mut self, index: ops::Range<usize>) -> &mut str {
         &mut self[..][index]
     }
 }
 #[stable(feature = "derefmut_for_string", since = "1.3.0")]
-impl ops::IndexMut<ops::RangeTo<usize>> for String {
+impl<A: Alloc> ops::IndexMut<ops::RangeTo<usize>> for String<A> {
     #[inline]
     fn index_mut(&mut self, index: ops::RangeTo<usize>) -> &mut str {
         &mut self[..][index]
     }
 }
 #[stable(feature = "derefmut_for_string", since = "1.3.0")]
-impl ops::IndexMut<ops::RangeFrom<usize>> for String {
+impl<A: Alloc> ops::IndexMut<ops::RangeFrom<usize>> for String<A> {
     #[inline]
     fn index_mut(&mut self, index: ops::RangeFrom<usize>) -> &mut str {
         &mut self[..][index]
     }
 }
 #[stable(feature = "derefmut_for_string", since = "1.3.0")]
-impl ops::IndexMut<ops::RangeFull> for String {
+impl<A: Alloc> ops::IndexMut<ops::RangeFull> for String<A> {
     #[inline]
     fn index_mut(&mut self, _index: ops::RangeFull) -> &mut str {
         unsafe { str::from_utf8_unchecked_mut(&mut *self.vec) }
     }
 }
 #[stable(feature = "inclusive_range", since = "1.26.0")]
-impl ops::IndexMut<ops::RangeInclusive<usize>> for String {
+impl<A: Alloc> ops::IndexMut<ops::RangeInclusive<usize>> for String<A> {
     #[inline]
     fn index_mut(&mut self, index: ops::RangeInclusive<usize>) -> &mut str {
         IndexMut::index_mut(&mut **self, index)
     }
 }
 #[stable(feature = "inclusive_range", since = "1.26.0")]
-impl ops::IndexMut<ops::RangeToInclusive<usize>> for String {
+impl<A: Alloc> ops::IndexMut<ops::RangeToInclusive<usize>> for String<A> {
     #[inline]
     fn index_mut(&mut self, index: ops::RangeToInclusive<usize>) -> &mut str {
         IndexMut::index_mut(&mut **self, index)
@@ -2044,7 +2081,7 @@ impl ops::IndexMut<ops::RangeToInclusive<usize>> for String {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl ops::Deref for String {
+impl<A: Alloc> ops::Deref for String<A> {
     type Target = str;
 
     #[inline]
@@ -2054,7 +2091,7 @@ impl ops::Deref for String {
 }
 
 #[stable(feature = "derefmut_for_string", since = "1.3.0")]
-impl ops::DerefMut for String {
+impl<A: Alloc> ops::DerefMut for String<A> {
     #[inline]
     fn deref_mut(&mut self) -> &mut str {
         unsafe { str::from_utf8_unchecked_mut(&mut *self.vec) }
@@ -2173,10 +2210,12 @@ impl AsRef<[u8]> for String {
 }
 
 #[stable(feature = "rust1", since = "1.0.0")]
-impl From<&str> for String {
+impl<A> From<&str> for String<A> where A: Alloc + Default, A::Err: Debug {
     #[inline]
-    fn from(s: &str) -> String {
-        s.to_owned()
+    fn from(s: &str) -> String<A> {
+        let mut x = String::new_in(A::default());
+        x.push_str(&s);
+        x
     }
 }
 
