@@ -441,7 +441,7 @@ impl f64 {
     where
         Self: FloatToInt<Int>,
     {
-        FloatToInt::<Int>::approx_unchecked(self)
+        unsafe { FloatToInt::<Int>::approx_unchecked(self) }
     }
 
     /// Raw transmutation to `u64`.

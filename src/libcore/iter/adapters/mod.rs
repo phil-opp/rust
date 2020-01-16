@@ -259,7 +259,7 @@ where
     T: Copy,
 {
     unsafe fn get_unchecked(&mut self, i: usize) -> Self::Item {
-        *self.it.get_unchecked(i)
+        *unsafe { self.it.get_unchecked(i) }
     }
 
     #[inline]
@@ -389,7 +389,7 @@ where
     T: Clone,
 {
     default unsafe fn get_unchecked(&mut self, i: usize) -> Self::Item {
-        self.it.get_unchecked(i).clone()
+        unsafe { self.it.get_unchecked(i) }.clone()
     }
 
     #[inline]
@@ -405,7 +405,7 @@ where
     T: Copy,
 {
     unsafe fn get_unchecked(&mut self, i: usize) -> Self::Item {
-        *self.it.get_unchecked(i)
+        *unsafe { self.it.get_unchecked(i) }
     }
 
     #[inline]
@@ -872,7 +872,7 @@ where
     F: FnMut(I::Item) -> B,
 {
     unsafe fn get_unchecked(&mut self, i: usize) -> Self::Item {
-        (self.f)(self.iter.get_unchecked(i))
+        (self.f)(unsafe { self.iter.get_unchecked(i) })
     }
     #[inline]
     fn may_have_side_effect() -> bool {
@@ -1334,7 +1334,7 @@ where
     I: TrustedRandomAccess,
 {
     unsafe fn get_unchecked(&mut self, i: usize) -> (usize, I::Item) {
-        (self.count + i, self.iter.get_unchecked(i))
+        (self.count + i, unsafe { self.iter.get_unchecked(i) })
     }
 
     fn may_have_side_effect() -> bool {
@@ -2313,7 +2313,7 @@ where
     I: TrustedRandomAccess,
 {
     unsafe fn get_unchecked(&mut self, i: usize) -> I::Item {
-        self.iter.get_unchecked(i)
+        unsafe { self.iter.get_unchecked(i) }
     }
 
     fn may_have_side_effect() -> bool {

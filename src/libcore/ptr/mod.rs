@@ -171,7 +171,7 @@ mod mut_ptr;
 #[stable(feature = "drop_in_place", since = "1.8.0")]
 #[inline(always)]
 pub unsafe fn drop_in_place<T: ?Sized>(to_drop: *mut T) {
-    real_drop_in_place(&mut *to_drop)
+    unsafe { real_drop_in_place(&mut *to_drop) }
 }
 
 // The real `drop_in_place` -- the one that gets called implicitly when variables go
@@ -184,7 +184,7 @@ pub unsafe fn drop_in_place<T: ?Sized>(to_drop: *mut T) {
 unsafe fn real_drop_in_place<T: ?Sized>(to_drop: &mut T) {
     // Code here does not matter - this is replaced by the
     // real drop glue by the compiler.
-    real_drop_in_place(to_drop)
+    unsafe { real_drop_in_place(to_drop) }
 }
 
 /// Creates a null raw pointer.
@@ -354,9 +354,11 @@ pub unsafe fn swap<T>(x: *mut T, y: *mut T) {
     let mut tmp = MaybeUninit::<T>::uninit();
 
     // Perform the swap
-    copy_nonoverlapping(x, tmp.as_mut_ptr(), 1);
-    copy(y, x, 1); // `x` and `y` may overlap
-    copy_nonoverlapping(tmp.as_ptr(), y, 1);
+    unsafe {
+        copy_nonoverlapping(x, tmp.as_mut_ptr(), 1);
+        copy(y, x, 1); // `x` and `y` may overlap
+        copy_nonoverlapping(tmp.as_ptr(), y, 1);
+    }
 }
 
 /// Swaps `count * size_of::<T>()` bytes between the two regions of memory
@@ -403,7 +405,7 @@ pub unsafe fn swap_nonoverlapping<T>(x: *mut T, y: *mut T, count: usize) {
     let x = x as *mut u8;
     let y = y as *mut u8;
     let len = mem::size_of::<T>() * count;
-    swap_nonoverlapping_bytes(x, y, len)
+    unsafe { swap_nonoverlapping_bytes(x, y, len) }
 }
 
 #[inline]
@@ -411,11 +413,13 @@ pub(crate) unsafe fn swap_nonoverlapping_one<T>(x: *mut T, y: *mut T) {
     // For types smaller than the block optimization below,
     // just swap directly to avoid pessimizing codegen.
     if mem::size_of::<T>() < 32 {
-        let z = read(x);
-        copy_nonoverlapping(y, x, 1);
-        write(y, z);
+        unsafe {
+            let z = read(x);
+            copy_nonoverlapping(y, x, 1);
+            write(y, z);
+        }
     } else {
-        swap_nonoverlapping(x, y, 1);
+        unsafe { swap_nonoverlapping(x, y, 1) };
     }
 }
 
@@ -442,14 +446,16 @@ unsafe fn swap_nonoverlapping_bytes(x: *mut u8, y: *mut u8, len: usize) {
         // Declaring `t` here avoids aligning the stack when this loop is unused
         let mut t = mem::MaybeUninit::<Block>::uninit();
         let t = t.as_mut_ptr() as *mut u8;
-        let x = x.add(i);
-        let y = y.add(i);
+        unsafe {
+            let x = x.add(i);
+            let y = y.add(i);
 
-        // Swap a block of bytes of x & y, using t as a temporary buffer
-        // This should be optimized into efficient SIMD operations where available
-        copy_nonoverlapping(x, t, block_size);
-        copy_nonoverlapping(y, x, block_size);
-        copy_nonoverlapping(t, y, block_size);
+            // Swap a block of bytes of x & y, using t as a temporary buffer
+            // This should be optimized into efficient SIMD operations where available
+            copy_nonoverlapping(x, t, block_size);
+            copy_nonoverlapping(y, x, block_size);
+            copy_nonoverlapping(t, y, block_size);
+        }
         i += block_size;
     }
 
@@ -459,12 +465,14 @@ unsafe fn swap_nonoverlapping_bytes(x: *mut u8, y: *mut u8, len: usize) {
         let rem = len - i;
 
         let t = t.as_mut_ptr() as *mut u8;
-        let x = x.add(i);
-        let y = y.add(i);
+        unsafe {
+            let x = x.add(i);
+            let y = y.add(i);
 
-        copy_nonoverlapping(x, t, rem);
-        copy_nonoverlapping(y, x, rem);
-        copy_nonoverlapping(t, y, rem);
+            copy_nonoverlapping(x, t, rem);
+            copy_nonoverlapping(y, x, rem);
+            copy_nonoverlapping(t, y, rem);
+        }
     }
 }
 
@@ -509,7 +517,7 @@ unsafe fn swap_nonoverlapping_bytes(x: *mut u8, y: *mut u8, len: usize) {
 #[inline]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub unsafe fn replace<T>(dst: *mut T, mut src: T) -> T {
-    mem::swap(&mut *dst, &mut src); // cannot overlap
+    mem::swap(unsafe { &mut *dst }, &mut src); // cannot overlap
     src
 }
 
@@ -624,8 +632,10 @@ pub unsafe fn replace<T>(dst: *mut T, mut src: T) -> T {
 #[stable(feature = "rust1", since = "1.0.0")]
 pub unsafe fn read<T>(src: *const T) -> T {
     let mut tmp = MaybeUninit::<T>::uninit();
-    copy_nonoverlapping(src, tmp.as_mut_ptr(), 1);
-    tmp.assume_init()
+    unsafe {
+        copy_nonoverlapping(src, tmp.as_mut_ptr(), 1);
+        tmp.assume_init()
+    }
 }
 
 /// Reads the value from `src` without moving it. This leaves the
@@ -715,8 +725,10 @@ pub unsafe fn read<T>(src: *const T) -> T {
 #[stable(feature = "ptr_unaligned", since = "1.17.0")]
 pub unsafe fn read_unaligned<T>(src: *const T) -> T {
     let mut tmp = MaybeUninit::<T>::uninit();
-    copy_nonoverlapping(src as *const u8, tmp.as_mut_ptr() as *mut u8, mem::size_of::<T>());
-    tmp.assume_init()
+    unsafe {
+        copy_nonoverlapping(src as *const u8, tmp.as_mut_ptr() as *mut u8, mem::size_of::<T>());
+        tmp.assume_init()
+    }
 }
 
 /// Overwrites a memory location with the given value without reading or
@@ -806,7 +818,7 @@ pub unsafe fn read_unaligned<T>(src: *const T) -> T {
 #[inline]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub unsafe fn write<T>(dst: *mut T, src: T) {
-    intrinsics::move_val_init(&mut *dst, src)
+    unsafe { intrinsics::move_val_init(&mut *dst, src) }
 }
 
 /// Overwrites a memory location with the given value without reading or
@@ -898,7 +910,9 @@ pub unsafe fn write<T>(dst: *mut T, src: T) {
 #[inline]
 #[stable(feature = "ptr_unaligned", since = "1.17.0")]
 pub unsafe fn write_unaligned<T>(dst: *mut T, src: T) {
-    copy_nonoverlapping(&src as *const T as *const u8, dst as *mut u8, mem::size_of::<T>());
+    unsafe {
+        copy_nonoverlapping(&src as *const T as *const u8, dst as *mut u8, mem::size_of::<T>())
+    };
     mem::forget(src);
 }
 
@@ -967,7 +981,7 @@ pub unsafe fn write_unaligned<T>(dst: *mut T, src: T) {
 #[inline]
 #[stable(feature = "volatile", since = "1.9.0")]
 pub unsafe fn read_volatile<T>(src: *const T) -> T {
-    intrinsics::volatile_load(src)
+    unsafe { intrinsics::volatile_load(src) }
 }
 
 /// Performs a volatile write of a memory location with the given value without
@@ -1035,7 +1049,7 @@ pub unsafe fn read_volatile<T>(src: *const T) -> T {
 #[inline]
 #[stable(feature = "volatile", since = "1.9.0")]
 pub unsafe fn write_volatile<T>(dst: *mut T, src: T) {
-    intrinsics::volatile_store(dst, src);
+    unsafe { intrinsics::volatile_store(dst, src) };
 }
 
 /// Align pointer `p`.
@@ -1123,7 +1137,7 @@ pub(crate) unsafe fn align_offset<T: Sized>(p: *const T, a: usize) -> usize {
 
     let smoda = stride & a_minus_one;
     // a is power-of-two so cannot be 0. stride = 0 is handled above.
-    let gcdpow = intrinsics::cttz_nonzero(stride).min(intrinsics::cttz_nonzero(a));
+    let gcdpow = unsafe { intrinsics::cttz_nonzero(stride).min(intrinsics::cttz_nonzero(a)) };
     let gcd = 1usize << gcdpow;
 
     if p as usize & (gcd - 1) == 0 {
@@ -1145,7 +1159,7 @@ pub(crate) unsafe fn align_offset<T: Sized>(p: *const T, a: usize) -> usize {
         // to take the result $o mod lcm(s, a)$. We can replace $lcm(s, a)$ with just a $a / g$.
         let j = a.wrapping_sub(pmoda) >> gcdpow;
         let k = smoda >> gcdpow;
-        return intrinsics::unchecked_rem(j.wrapping_mul(mod_inv(k, a)), a >> gcdpow);
+        return unsafe { intrinsics::unchecked_rem(j.wrapping_mul(mod_inv(k, a)), a >> gcdpow) };
     }
 
     // Cannot be aligned at all.

@@ -495,8 +495,8 @@ impl<T> MaybeUninit<T> {
     #[inline(always)]
     #[rustc_diagnostic_item = "assume_init"]
     pub unsafe fn assume_init(self) -> T {
-        intrinsics::panic_if_uninhabited::<T>();
-        ManuallyDrop::into_inner(self.value)
+        unsafe { intrinsics::panic_if_uninhabited::<T>() };
+        ManuallyDrop::into_inner(unsafe { self.value })
     }
 
     /// Reads the value from the `MaybeUninit<T>` container. The resulting `T` is subject
@@ -559,8 +559,10 @@ impl<T> MaybeUninit<T> {
     #[unstable(feature = "maybe_uninit_extra", issue = "63567")]
     #[inline(always)]
     pub unsafe fn read(&self) -> T {
-        intrinsics::panic_if_uninhabited::<T>();
-        self.as_ptr().read()
+        unsafe {
+            intrinsics::panic_if_uninhabited::<T>();
+            self.as_ptr().read()
+        }
     }
 
     /// Gets a shared reference to the contained value.
@@ -621,8 +623,10 @@ impl<T> MaybeUninit<T> {
     #[unstable(feature = "maybe_uninit_ref", issue = "63568")]
     #[inline(always)]
     pub unsafe fn get_ref(&self) -> &T {
-        intrinsics::panic_if_uninhabited::<T>();
-        &*self.value
+        unsafe {
+            intrinsics::panic_if_uninhabited::<T>();
+            &*self.value
+        }
     }
 
     /// Gets a mutable (unique) reference to the contained value.
@@ -739,8 +743,10 @@ impl<T> MaybeUninit<T> {
     #[unstable(feature = "maybe_uninit_ref", issue = "63568")]
     #[inline(always)]
     pub unsafe fn get_mut(&mut self) -> &mut T {
-        intrinsics::panic_if_uninhabited::<T>();
-        &mut *self.value
+        unsafe {
+            intrinsics::panic_if_uninhabited::<T>();
+            &mut *self.value
+        }
     }
 
     /// Assuming all the elements are initialized, get a slice to them.
@@ -753,7 +759,7 @@ impl<T> MaybeUninit<T> {
     #[unstable(feature = "maybe_uninit_slice_assume_init", issue = "none")]
     #[inline(always)]
     pub unsafe fn slice_get_ref(slice: &[Self]) -> &[T] {
-        &*(slice as *const [Self] as *const [T])
+        unsafe { &*(slice as *const [Self] as *const [T]) }
     }
 
     /// Assuming all the elements are initialized, get a mutable slice to them.
@@ -766,7 +772,7 @@ impl<T> MaybeUninit<T> {
     #[unstable(feature = "maybe_uninit_slice_assume_init", issue = "none")]
     #[inline(always)]
     pub unsafe fn slice_get_mut(slice: &mut [Self]) -> &mut [T] {
-        &mut *(slice as *mut [Self] as *mut [T])
+        unsafe { &mut *(slice as *mut [Self] as *mut [T]) }
     }
 
     /// Gets a pointer to the first element of the array.

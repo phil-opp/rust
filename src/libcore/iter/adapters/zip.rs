@@ -265,7 +265,7 @@ where
     B: TrustedRandomAccess,
 {
     unsafe fn get_unchecked(&mut self, i: usize) -> (A::Item, B::Item) {
-        (self.a.get_unchecked(i), self.b.get_unchecked(i))
+        (unsafe { self.a.get_unchecked(i) }, unsafe { self.b.get_unchecked(i) })
     }
 
     fn may_have_side_effect() -> bool {

@@ -112,11 +112,13 @@ macro_rules! load_int_le {
     ($buf:expr, $i:expr, $int_ty:ident) => {{
         debug_assert!($i + mem::size_of::<$int_ty>() <= $buf.len());
         let mut data = 0 as $int_ty;
-        ptr::copy_nonoverlapping(
-            $buf.get_unchecked($i),
-            &mut data as *mut _ as *mut u8,
-            mem::size_of::<$int_ty>(),
-        );
+        unsafe {
+            ptr::copy_nonoverlapping(
+                $buf.get_unchecked($i),
+                &mut data as *mut _ as *mut u8,
+                mem::size_of::<$int_ty>(),
+            )
+        };
         data.to_le()
     }};
 }
@@ -138,7 +140,7 @@ unsafe fn u8to64_le(buf: &[u8], start: usize, len: usize) -> u64 {
         i += 2
     }
     if i < len {
-        out |= (*buf.get_unchecked(start + i) as u64) << (i * 8);
+        out |= (*unsafe { buf.get_unchecked(start + i) } as u64) << (i * 8);
         i += 1;
     }
     debug_assert_eq!(i, len);

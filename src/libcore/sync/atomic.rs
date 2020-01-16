@@ -2230,9 +2230,9 @@ fn strongest_failure_ordering(order: Ordering) -> Ordering {
 #[inline]
 unsafe fn atomic_store<T>(dst: *mut T, val: T, order: Ordering) {
     match order {
-        Release => intrinsics::atomic_store_rel(dst, val),
-        Relaxed => intrinsics::atomic_store_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_store(dst, val),
+        Release => unsafe { intrinsics::atomic_store_rel(dst, val) },
+        Relaxed => unsafe { intrinsics::atomic_store_relaxed(dst, val) },
+        SeqCst => unsafe { intrinsics::atomic_store(dst, val) },
         Acquire => panic!("there is no such thing as an acquire store"),
         AcqRel => panic!("there is no such thing as an acquire/release store"),
     }
@@ -2241,9 +2241,9 @@ unsafe fn atomic_store<T>(dst: *mut T, val: T, order: Ordering) {
 #[inline]
 unsafe fn atomic_load<T>(dst: *const T, order: Ordering) -> T {
     match order {
-        Acquire => intrinsics::atomic_load_acq(dst),
-        Relaxed => intrinsics::atomic_load_relaxed(dst),
-        SeqCst => intrinsics::atomic_load(dst),
+        Acquire => unsafe { intrinsics::atomic_load_acq(dst) },
+        Relaxed => unsafe { intrinsics::atomic_load_relaxed(dst) },
+        SeqCst => unsafe { intrinsics::atomic_load(dst) },
         Release => panic!("there is no such thing as a release load"),
         AcqRel => panic!("there is no such thing as an acquire/release load"),
     }
@@ -2252,12 +2252,14 @@ unsafe fn atomic_load<T>(dst: *const T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_swap<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_xchg_acq(dst, val),
-        Release => intrinsics::atomic_xchg_rel(dst, val),
-        AcqRel => intrinsics::atomic_xchg_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_xchg_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_xchg(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_xchg_acq(dst, val),
+            Release => intrinsics::atomic_xchg_rel(dst, val),
+            AcqRel => intrinsics::atomic_xchg_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_xchg_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_xchg(dst, val),
+        }
     }
 }
 
@@ -2265,12 +2267,14 @@ unsafe fn atomic_swap<T>(dst: *mut T, val: T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_add<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_xadd_acq(dst, val),
-        Release => intrinsics::atomic_xadd_rel(dst, val),
-        AcqRel => intrinsics::atomic_xadd_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_xadd_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_xadd(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_xadd_acq(dst, val),
+            Release => intrinsics::atomic_xadd_rel(dst, val),
+            AcqRel => intrinsics::atomic_xadd_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_xadd_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_xadd(dst, val),
+        }
     }
 }
 
@@ -2278,12 +2282,14 @@ unsafe fn atomic_add<T>(dst: *mut T, val: T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_sub<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_xsub_acq(dst, val),
-        Release => intrinsics::atomic_xsub_rel(dst, val),
-        AcqRel => intrinsics::atomic_xsub_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_xsub_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_xsub(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_xsub_acq(dst, val),
+            Release => intrinsics::atomic_xsub_rel(dst, val),
+            AcqRel => intrinsics::atomic_xsub_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_xsub_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_xsub(dst, val),
+        }
     }
 }
 
@@ -2296,19 +2302,21 @@ unsafe fn atomic_compare_exchange<T>(
     success: Ordering,
     failure: Ordering,
 ) -> Result<T, T> {
-    let (val, ok) = match (success, failure) {
-        (Acquire, Acquire) => intrinsics::atomic_cxchg_acq(dst, old, new),
-        (Release, Relaxed) => intrinsics::atomic_cxchg_rel(dst, old, new),
-        (AcqRel, Acquire) => intrinsics::atomic_cxchg_acqrel(dst, old, new),
-        (Relaxed, Relaxed) => intrinsics::atomic_cxchg_relaxed(dst, old, new),
-        (SeqCst, SeqCst) => intrinsics::atomic_cxchg(dst, old, new),
-        (Acquire, Relaxed) => intrinsics::atomic_cxchg_acq_failrelaxed(dst, old, new),
-        (AcqRel, Relaxed) => intrinsics::atomic_cxchg_acqrel_failrelaxed(dst, old, new),
-        (SeqCst, Relaxed) => intrinsics::atomic_cxchg_failrelaxed(dst, old, new),
-        (SeqCst, Acquire) => intrinsics::atomic_cxchg_failacq(dst, old, new),
-        (_, AcqRel) => panic!("there is no such thing as an acquire/release failure ordering"),
-        (_, Release) => panic!("there is no such thing as a release failure ordering"),
-        _ => panic!("a failure ordering can't be stronger than a success ordering"),
+    let (val, ok) = unsafe {
+        match (success, failure) {
+            (Acquire, Acquire) => intrinsics::atomic_cxchg_acq(dst, old, new),
+            (Release, Relaxed) => intrinsics::atomic_cxchg_rel(dst, old, new),
+            (AcqRel, Acquire) => intrinsics::atomic_cxchg_acqrel(dst, old, new),
+            (Relaxed, Relaxed) => intrinsics::atomic_cxchg_relaxed(dst, old, new),
+            (SeqCst, SeqCst) => intrinsics::atomic_cxchg(dst, old, new),
+            (Acquire, Relaxed) => intrinsics::atomic_cxchg_acq_failrelaxed(dst, old, new),
+            (AcqRel, Relaxed) => intrinsics::atomic_cxchg_acqrel_failrelaxed(dst, old, new),
+            (SeqCst, Relaxed) => intrinsics::atomic_cxchg_failrelaxed(dst, old, new),
+            (SeqCst, Acquire) => intrinsics::atomic_cxchg_failacq(dst, old, new),
+            (_, AcqRel) => panic!("there is no such thing as an acquire/release failure ordering"),
+            (_, Release) => panic!("there is no such thing as a release failure ordering"),
+            _ => panic!("a failure ordering can't be stronger than a success ordering"),
+        }
     };
     if ok { Ok(val) } else { Err(val) }
 }
@@ -2322,19 +2330,21 @@ unsafe fn atomic_compare_exchange_weak<T>(
     success: Ordering,
     failure: Ordering,
 ) -> Result<T, T> {
-    let (val, ok) = match (success, failure) {
-        (Acquire, Acquire) => intrinsics::atomic_cxchgweak_acq(dst, old, new),
-        (Release, Relaxed) => intrinsics::atomic_cxchgweak_rel(dst, old, new),
-        (AcqRel, Acquire) => intrinsics::atomic_cxchgweak_acqrel(dst, old, new),
-        (Relaxed, Relaxed) => intrinsics::atomic_cxchgweak_relaxed(dst, old, new),
-        (SeqCst, SeqCst) => intrinsics::atomic_cxchgweak(dst, old, new),
-        (Acquire, Relaxed) => intrinsics::atomic_cxchgweak_acq_failrelaxed(dst, old, new),
-        (AcqRel, Relaxed) => intrinsics::atomic_cxchgweak_acqrel_failrelaxed(dst, old, new),
-        (SeqCst, Relaxed) => intrinsics::atomic_cxchgweak_failrelaxed(dst, old, new),
-        (SeqCst, Acquire) => intrinsics::atomic_cxchgweak_failacq(dst, old, new),
-        (_, AcqRel) => panic!("there is no such thing as an acquire/release failure ordering"),
-        (_, Release) => panic!("there is no such thing as a release failure ordering"),
-        _ => panic!("a failure ordering can't be stronger than a success ordering"),
+    let (val, ok) = unsafe {
+        match (success, failure) {
+            (Acquire, Acquire) => intrinsics::atomic_cxchgweak_acq(dst, old, new),
+            (Release, Relaxed) => intrinsics::atomic_cxchgweak_rel(dst, old, new),
+            (AcqRel, Acquire) => intrinsics::atomic_cxchgweak_acqrel(dst, old, new),
+            (Relaxed, Relaxed) => intrinsics::atomic_cxchgweak_relaxed(dst, old, new),
+            (SeqCst, SeqCst) => intrinsics::atomic_cxchgweak(dst, old, new),
+            (Acquire, Relaxed) => intrinsics::atomic_cxchgweak_acq_failrelaxed(dst, old, new),
+            (AcqRel, Relaxed) => intrinsics::atomic_cxchgweak_acqrel_failrelaxed(dst, old, new),
+            (SeqCst, Relaxed) => intrinsics::atomic_cxchgweak_failrelaxed(dst, old, new),
+            (SeqCst, Acquire) => intrinsics::atomic_cxchgweak_failacq(dst, old, new),
+            (_, AcqRel) => panic!("there is no such thing as an acquire/release failure ordering"),
+            (_, Release) => panic!("there is no such thing as a release failure ordering"),
+            _ => panic!("a failure ordering can't be stronger than a success ordering"),
+        }
     };
     if ok { Ok(val) } else { Err(val) }
 }
@@ -2342,48 +2352,56 @@ unsafe fn atomic_compare_exchange_weak<T>(
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_and<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_and_acq(dst, val),
-        Release => intrinsics::atomic_and_rel(dst, val),
-        AcqRel => intrinsics::atomic_and_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_and_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_and(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_and_acq(dst, val),
+            Release => intrinsics::atomic_and_rel(dst, val),
+            AcqRel => intrinsics::atomic_and_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_and_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_and(dst, val),
+        }
     }
 }
 
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_nand<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_nand_acq(dst, val),
-        Release => intrinsics::atomic_nand_rel(dst, val),
-        AcqRel => intrinsics::atomic_nand_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_nand_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_nand(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_nand_acq(dst, val),
+            Release => intrinsics::atomic_nand_rel(dst, val),
+            AcqRel => intrinsics::atomic_nand_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_nand_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_nand(dst, val),
+        }
     }
 }
 
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_or<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_or_acq(dst, val),
-        Release => intrinsics::atomic_or_rel(dst, val),
-        AcqRel => intrinsics::atomic_or_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_or_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_or(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_or_acq(dst, val),
+            Release => intrinsics::atomic_or_rel(dst, val),
+            AcqRel => intrinsics::atomic_or_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_or_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_or(dst, val),
+        }
     }
 }
 
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_xor<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_xor_acq(dst, val),
-        Release => intrinsics::atomic_xor_rel(dst, val),
-        AcqRel => intrinsics::atomic_xor_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_xor_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_xor(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_xor_acq(dst, val),
+            Release => intrinsics::atomic_xor_rel(dst, val),
+            AcqRel => intrinsics::atomic_xor_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_xor_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_xor(dst, val),
+        }
     }
 }
 
@@ -2391,12 +2409,14 @@ unsafe fn atomic_xor<T>(dst: *mut T, val: T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_max<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_max_acq(dst, val),
-        Release => intrinsics::atomic_max_rel(dst, val),
-        AcqRel => intrinsics::atomic_max_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_max_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_max(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_max_acq(dst, val),
+            Release => intrinsics::atomic_max_rel(dst, val),
+            AcqRel => intrinsics::atomic_max_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_max_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_max(dst, val),
+        }
     }
 }
 
@@ -2404,12 +2424,14 @@ unsafe fn atomic_max<T>(dst: *mut T, val: T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_min<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_min_acq(dst, val),
-        Release => intrinsics::atomic_min_rel(dst, val),
-        AcqRel => intrinsics::atomic_min_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_min_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_min(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_min_acq(dst, val),
+            Release => intrinsics::atomic_min_rel(dst, val),
+            AcqRel => intrinsics::atomic_min_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_min_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_min(dst, val),
+        }
     }
 }
 
@@ -2417,12 +2439,14 @@ unsafe fn atomic_min<T>(dst: *mut T, val: T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_umax<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_umax_acq(dst, val),
-        Release => intrinsics::atomic_umax_rel(dst, val),
-        AcqRel => intrinsics::atomic_umax_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_umax_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_umax(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_umax_acq(dst, val),
+            Release => intrinsics::atomic_umax_rel(dst, val),
+            AcqRel => intrinsics::atomic_umax_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_umax_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_umax(dst, val),
+        }
     }
 }
 
@@ -2430,12 +2454,14 @@ unsafe fn atomic_umax<T>(dst: *mut T, val: T, order: Ordering) -> T {
 #[inline]
 #[cfg(target_has_atomic = "8")]
 unsafe fn atomic_umin<T>(dst: *mut T, val: T, order: Ordering) -> T {
-    match order {
-        Acquire => intrinsics::atomic_umin_acq(dst, val),
-        Release => intrinsics::atomic_umin_rel(dst, val),
-        AcqRel => intrinsics::atomic_umin_acqrel(dst, val),
-        Relaxed => intrinsics::atomic_umin_relaxed(dst, val),
-        SeqCst => intrinsics::atomic_umin(dst, val),
+    unsafe {
+        match order {
+            Acquire => intrinsics::atomic_umin_acq(dst, val),
+            Release => intrinsics::atomic_umin_rel(dst, val),
+            AcqRel => intrinsics::atomic_umin_acqrel(dst, val),
+            Relaxed => intrinsics::atomic_umin_relaxed(dst, val),
+            SeqCst => intrinsics::atomic_umin(dst, val),
+        }
     }
 }
 

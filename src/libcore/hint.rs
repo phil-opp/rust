@@ -48,7 +48,7 @@ use crate::intrinsics;
 #[inline]
 #[stable(feature = "unreachable", since = "1.27.0")]
 pub unsafe fn unreachable_unchecked() -> ! {
-    intrinsics::unreachable()
+    unsafe { intrinsics::unreachable() }
 }
 
 /// Emits a machine instruction hinting to the processor that it is running in busy-wait

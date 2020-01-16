@@ -97,7 +97,7 @@ impl<T: ?Sized> *const T {
     #[stable(feature = "ptr_as_ref", since = "1.9.0")]
     #[inline]
     pub unsafe fn as_ref<'a>(self) -> Option<&'a T> {
-        if self.is_null() { None } else { Some(&*self) }
+        if self.is_null() { None } else { Some(unsafe { &*self }) }
     }
 
     /// Calculates the offset from a pointer.
@@ -157,7 +157,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        intrinsics::offset(self, count)
+        unsafe { intrinsics::offset(self, count) }
     }
 
     /// Calculates the offset from a pointer using wrapping arithmetic.
@@ -289,7 +289,7 @@ impl<T: ?Sized> *const T {
     {
         let pointee_size = mem::size_of::<T>();
         assert!(0 < pointee_size && pointee_size <= isize::max_value() as usize);
-        intrinsics::ptr_offset_from(self, origin)
+        unsafe { intrinsics::ptr_offset_from(self, origin) }
     }
 
     /// Calculates the distance between two pointers. The returned value is in
@@ -396,7 +396,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        self.offset(count as isize)
+        unsafe { self.offset(count as isize) }
     }
 
     /// Calculates the offset from a pointer (convenience for
@@ -457,7 +457,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        self.offset((count as isize).wrapping_neg())
+        unsafe { self.offset((count as isize).wrapping_neg()) }
     }
 
     /// Calculates the offset from a pointer using wrapping arithmetic.
@@ -582,7 +582,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        read(self)
+        unsafe { read(self) }
     }
 
     /// Performs a volatile read of the value from `self` without moving it. This
@@ -601,7 +601,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        read_volatile(self)
+        unsafe { read_volatile(self) }
     }
 
     /// Reads the value from `self` without moving it. This leaves the
@@ -618,7 +618,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        read_unaligned(self)
+        unsafe { read_unaligned(self) }
     }
 
     /// Copies `count * size_of<T>` bytes from `self` to `dest`. The source
@@ -635,7 +635,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        copy(self, dest, count)
+        unsafe { copy(self, dest, count) }
     }
 
     /// Copies `count * size_of<T>` bytes from `self` to `dest`. The source
@@ -652,7 +652,7 @@ impl<T: ?Sized> *const T {
     where
         T: Sized,
     {
-        copy_nonoverlapping(self, dest, count)
+        unsafe { copy_nonoverlapping(self, dest, count) }
     }
 
     /// Computes the offset that needs to be applied to the pointer in order to make it aligned to

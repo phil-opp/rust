@@ -333,7 +333,7 @@ impl<'f> VaListImpl<'f> {
     /// Advance to the next arg.
     #[inline]
     pub unsafe fn arg<T: sealed_trait::VaArgSafe>(&mut self) -> T {
-        va_arg(self)
+        unsafe { va_arg(self) }
     }
 
     /// Copies the `va_list` at the current location.
@@ -343,7 +343,7 @@ impl<'f> VaListImpl<'f> {
     {
         let mut ap = self.clone();
         let ret = f(ap.as_va_list());
-        va_end(&mut ap);
+        unsafe { va_end(&mut ap) };
         ret
     }
 }

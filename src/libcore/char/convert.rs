@@ -99,7 +99,7 @@ pub fn from_u32(i: u32) -> Option<char> {
 #[inline]
 #[stable(feature = "char_from_unchecked", since = "1.5.0")]
 pub unsafe fn from_u32_unchecked(i: u32) -> char {
-    transmute(i)
+    unsafe { transmute(i) }
 }
 
 #[stable(feature = "char_convert", since = "1.13.0")]

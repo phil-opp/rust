@@ -64,7 +64,7 @@ assert_eq!(size_of::<Option<core::num::", stringify!($Ty), ">>(), size_of::<", s
                 #[rustc_const_stable(feature = "nonzero", since = "1.34.0")]
                 #[inline]
                 pub const unsafe fn new_unchecked(n: $Int) -> Self {
-                    Self(n)
+                    unsafe { Self(n) }
                 }
 
                 /// Creates a non-zero if the given value is not zero.

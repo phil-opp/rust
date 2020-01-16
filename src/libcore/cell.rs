@@ -974,7 +974,7 @@ impl<T: ?Sized> RefCell<T> {
     #[inline]
     pub unsafe fn try_borrow_unguarded(&self) -> Result<&T, BorrowError> {
         if !is_writing(self.borrow.get()) {
-            Ok(&*self.value.get())
+            Ok(unsafe { &*self.value.get() })
         } else {
             Err(BorrowError { _private: () })
         }

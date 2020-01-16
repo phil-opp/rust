@@ -677,7 +677,7 @@ impl<'a, T: ?Sized> Pin<&'a T> {
     {
         let pointer = &*self.pointer;
         let new_pointer = func(pointer);
-        Pin::new_unchecked(new_pointer)
+        unsafe { Pin::new_unchecked(new_pointer) }
     }
 
     /// Gets a shared reference out of a pin.
@@ -767,9 +767,9 @@ impl<'a, T: ?Sized> Pin<&'a mut T> {
         U: ?Sized,
         F: FnOnce(&mut T) -> &mut U,
     {
-        let pointer = Pin::get_unchecked_mut(self);
+        let pointer = unsafe { Pin::get_unchecked_mut(self) };
         let new_pointer = func(pointer);
-        Pin::new_unchecked(new_pointer)
+        unsafe { Pin::new_unchecked(new_pointer) }
     }
 }
 

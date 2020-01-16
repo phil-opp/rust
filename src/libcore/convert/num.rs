@@ -28,7 +28,7 @@ macro_rules! impl_float_to_int {
                 #[doc(hidden)]
                 #[inline]
                 unsafe fn approx_unchecked(self) -> $Int {
-                    crate::intrinsics::float_to_int_approx_unchecked(self)
+                    unsafe { crate::intrinsics::float_to_int_approx_unchecked(self) }
                 }
             }
         )+

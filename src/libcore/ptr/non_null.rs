@@ -86,7 +86,7 @@ impl<T: ?Sized> NonNull<T> {
     #[rustc_const_stable(feature = "const_nonnull_new_unchecked", since = "1.32.0")]
     #[inline]
     pub const unsafe fn new_unchecked(ptr: *mut T) -> Self {
-        NonNull { pointer: ptr as _ }
+        unsafe { NonNull { pointer: ptr as _ } }
     }
 
     /// Creates a new `NonNull` if `ptr` is non-null.
@@ -112,7 +112,7 @@ impl<T: ?Sized> NonNull<T> {
     #[stable(feature = "nonnull", since = "1.25.0")]
     #[inline]
     pub unsafe fn as_ref(&self) -> &T {
-        &*self.as_ptr()
+        unsafe { &*self.as_ptr() }
     }
 
     /// Mutably dereferences the content.
@@ -123,7 +123,7 @@ impl<T: ?Sized> NonNull<T> {
     #[stable(feature = "nonnull", since = "1.25.0")]
     #[inline]
     pub unsafe fn as_mut(&mut self) -> &mut T {
-        &mut *self.as_ptr()
+        unsafe { &mut *self.as_ptr() }
     }
 
     /// Casts to a pointer of another type.

@@ -495,8 +495,10 @@ pub const fn needs_drop<T>() -> bool {
 #[allow(deprecated)]
 #[rustc_diagnostic_item = "mem_zeroed"]
 pub unsafe fn zeroed<T>() -> T {
-    intrinsics::panic_if_uninhabited::<T>();
-    intrinsics::init()
+    unsafe {
+        intrinsics::panic_if_uninhabited::<T>();
+        intrinsics::init()
+    }
 }
 
 /// Bypasses Rust's normal memory-initialization checks by pretending to
@@ -528,8 +530,10 @@ pub unsafe fn zeroed<T>() -> T {
 #[allow(deprecated)]
 #[rustc_diagnostic_item = "mem_uninitialized"]
 pub unsafe fn uninitialized<T>() -> T {
-    intrinsics::panic_if_uninhabited::<T>();
-    intrinsics::uninit()
+    unsafe {
+        intrinsics::panic_if_uninhabited::<T>();
+        intrinsics::uninit()
+    }
 }
 
 /// Swaps the values at two mutable locations, without deinitializing either one.
@@ -791,7 +795,7 @@ pub fn drop<T>(_x: T) {}
 #[inline]
 #[stable(feature = "rust1", since = "1.0.0")]
 pub unsafe fn transmute_copy<T, U>(src: &T) -> U {
-    ptr::read_unaligned(src as *const T as *const U)
+    unsafe { ptr::read_unaligned(src as *const T as *const U) }
 }
 
 /// Opaque type representing the discriminant of an enum.
